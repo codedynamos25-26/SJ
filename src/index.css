@@ -1,0 +1,224 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel-Square.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme tokens (dark by default) ─────────────────────────────────────── */
+:root {
+  --bg-base:              #0A0A0A;
+  --bg-body:              #0d141c;
+  --bg-surface:           #141414cc;
+  --bg-surface-solid:     #141414;
+  --bg-elevated:          #151c24;
+  --bg-container:         #192028;
+  --bg-container-high:    #242b33;
+  --bg-container-highest: #2e353e;
+  --bg-container-low:     #151c24;
+  --bg-bright:            #333a43;
+
+  --text-base:            #dce3ee;
+  --text-muted:           #c6c8b0;
+  --text-strong:          #ffffff;
+
+  --border-faint:         rgba(255,255,255,0.05);
+  --border-subtle:        rgba(255,255,255,0.10);
+  --border-medium:        rgba(255,255,255,0.20);
+
+  --nav-bg:               rgba(0,0,0,0.80);
+  --scrollbar-track:      #0d141c;
+  --scrollbar-thumb:      #333;
+}
+
+/* ── Light theme overrides ───────────────────────────────────────────────── */
+html.light {
+  --bg-base:              #F5F4EF;
+  --bg-body:              #EFF0EB;
+  --bg-surface:           rgba(255,255,255,0.85);
+  --bg-surface-solid:     #FFFFFF;
+  --bg-elevated:          #F8F8F4;
+  --bg-container:         #EAEAE5;
+  --bg-container-high:    #E0E0DA;
+  --bg-container-highest: #D4D4CE;
+  --bg-container-low:     #F2F2EE;
+  --bg-bright:            #FFFFFF;
+
+  --text-base:            #1a1f27;
+  --text-muted:           #525646;
+  --text-strong:          #0d0d0d;
+
+  --border-faint:         rgba(0,0,0,0.06);
+  --border-subtle:        rgba(0,0,0,0.10);
+  --border-medium:        rgba(0,0,0,0.18);
+
+  --nav-bg:               rgba(255,255,255,0.85);
+  --scrollbar-track:      #EFF0EB;
+  --scrollbar-thumb:      #c0c0bb;
+}
+
+@layer base {
+  html {
+    background-color: var(--bg-body);
+    color: var(--text-base);
+  }
+  body {
+    background-color: var(--bg-body);
+    color: var(--text-base);
+    font-family: 'Inter', sans-serif;
+  }
+  /* Hide default cursor on pointer devices */
+  @media (pointer: fine) {
+    *, *::before, *::after { cursor: none !important; }
+  }
+}
+
+/* ── Apply CSS vars to all hardcoded dark bg classes in JSX ─────────────── */
+html.light [class~="bg-\[\#0A0A0A\]"],
+html.light [class~="bg-\[\#0a0a0a\]"]   { background-color: var(--bg-base) !important; }
+
+html.light [class~="bg-\[\#0d141c\]"],
+html.light [class~="bg-\[\#0D141C\]"]   { background-color: var(--bg-body) !important; }
+
+html.light [class~="bg-\[\#141414\]"]   { background-color: var(--bg-surface-solid) !important; }
+html.light [class~="bg-\[\#151c24\]"],
+html.light [class~="bg-\[\#151C24\]"]   { background-color: var(--bg-elevated) !important; }
+html.light [class~="bg-\[\#1a2035\]"]   { background-color: var(--bg-container) !important; }
+html.light [class~="bg-\[\#141414\]\/80"] { background-color: rgba(255,255,255,0.85) !important; }
+
+/* text-white → dark in light mode */
+html.light .text-white { color: var(--text-strong) !important; }
+
+/* white/5, white/10 borders → dark equivalents */
+html.light [class*="border-white\/5"]  { border-color: var(--border-faint)  !important; }
+html.light [class*="border-white\/10"] { border-color: var(--border-subtle) !important; }
+html.light [class*="border-white\/20"] { border-color: var(--border-medium) !important; }
+
+/* white/5 background-color utilities */
+html.light [class*="bg-white\/5"]  { background-color: rgba(0,0,0,0.04) !important; }
+html.light [class*="bg-white\/10"] { background-color: rgba(0,0,0,0.08) !important; }
+
+/* backdrop nav pill */
+html.light [class*="bg-black\/80"] { background-color: var(--nav-bg) !important; }
+html.light [class*="bg-black\/60"] { background-color: rgba(255,255,255,0.7) !important; }
+
+/* Tailwind semantic surface colors → light equivalents */
+html.light .bg-surface-container         { background-color: var(--bg-container) !important; }
+html.light .bg-surface-container-low     { background-color: var(--bg-container-low) !important; }
+html.light .bg-surface-container-high    { background-color: var(--bg-container-high) !important; }
+html.light .bg-surface-container-highest { background-color: var(--bg-container-highest) !important; }
+html.light .bg-surface-bright            { background-color: var(--bg-bright) !important; }
+html.light .text-on-surface              { color: var(--text-base) !important; }
+html.light .text-on-surface-variant      { color: var(--text-muted) !important; }
+html.light .border-outline-variant       { border-color: rgba(0,0,0,0.15) !important; }
+html.light [class*="border-outline-variant"] { border-color: rgba(0,0,0,0.12) !important; }
+
+/* Dividers */
+html.light .divide-outline-variant\/10 > * + * { border-color: rgba(0,0,0,0.08) !important; }
+
+/* Hover surfaces */
+html.light [class*="hover\:bg-surface-bright"] { --tw-bg-opacity: 1; }
+html.light .hover\:bg-surface-bright\/30:hover { background-color: rgba(0,0,0,0.04) !important; }
+
+@layer utilities {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .neon-glow {
+    text-shadow: 0 0 10px rgba(211, 239, 87, 0.4);
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+@layer components {
+  .glass-panel {
+    background: var(--bg-surface);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+  }
+  .kinetic-glass {
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(211, 239, 87, 0.1);
+  }
+  .lab-panel {
+    background: var(--bg-surface);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-faint);
+    transition: border-color 0.3s;
+  }
+  .lab-panel:hover { border-color: rgba(211, 239, 87, 0.3); }
+
+  .technical-gradient { background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-body) 100%); }
+  .kinetic-gradient { background: linear-gradient(135deg, #d3ef57 0%, #a6bf4a 100%); }
+
+  .technical-border { position: relative; }
+  .technical-border::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    width: 10px; height: 10px;
+    border-top: 2px solid #d3ef57;
+    border-left: 2px solid #d3ef57;
+    z-index: 1;
+  }
+  .technical-border::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 10px; height: 10px;
+    border-bottom: 2px solid #d3ef57;
+    border-right: 2px solid #d3ef57;
+    z-index: 1;
+  }
+  .scanline {
+    width: 100%; height: 2px;
+    background: rgba(211, 239, 87, 0.1);
+    position: absolute;
+    top: 0; left: 0; z-index: 5;
+    animation: scanline 6s linear infinite;
+  }
+  .ticker-scroll {
+    display: flex;
+    white-space: nowrap;
+    animation: ticker 40s linear infinite;
+  }
+}
+
+@keyframes scanline {
+  0%   { top: 0%; }
+  100% { top: 100%; }
+}
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
+::-webkit-scrollbar-thumb:hover { background: #d3ef57; }

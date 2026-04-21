@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build outputs
+dist/
+server/dist/
+
+# Environment
+.env
+server/.env
+
+# Vite
+*.local
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+.claude
+

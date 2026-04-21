@@ -1,0 +1,48 @@
+export interface Event {
+  id: string; type: string; date: string; title: string
+  description: string; slots: number; total: number
+  status: string; location: string; accent: string; image?: string
+  platform?: string; externalUrl?: string
+}
+
+export const MOCK_EVENTS: Event[] = [
+  {
+    id: 'ev1',
+    type: 'Workshop',
+    date: 'MAY 24',
+    title: 'Advanced Rust Systems Programming',
+    description: 'Deep-dive into Rust memory model, async runtimes, and systems-level performance. Hands-on with tokio and axum.',
+    slots: 8,
+    total: 30,
+    status: 'Open',
+    location: 'Lab 3B',
+    accent: '#d3ef57',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAXn_-T0r_UBnvyAglmFKHY5SDS8pe33avm0AXhQOgO_pWfjILY84z7cCOrT4CTe95irAZzgKBdWIsp8vx0GeYXYcf_udQPu3L3nIySJOsv7pJBVdGGs6CwVm9O_Azd4FefJSyt2cki706imdO1WQYLTEl_zC2TDvSbK9zOzN75S0gBbzlIQwKEID519kvxQnq51eJSpZE1FV_Au4nYRrLUr8P0hHQGIiFsYLu-xecP_ErTnk6-Yi-o1TEkEU3C3JeIKskJgXfswg',
+  },
+  {
+    id: 'ev2',
+    type: 'Hackathon',
+    date: 'JUL 05',
+    title: "Cloud Native Sprint — Web Weave '26",
+    description: '48-hour hackathon building cloud-native apps with Kubernetes, serverless, and edge computing.',
+    slots: 0,
+    total: 120,
+    status: 'Full',
+    location: 'Main Auditorium',
+    accent: '#dbb8ff',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAv5Fzz17-szQHNuORsgeozQsFTnlFtyDmKKZABXD6NDOwCS8wG9dfPcPugyI2fqMSQ-R3VQ-pZRZ05Hyz1QrHqCvePVKU3pW_ZxHyBegnLjB5e-ja2ZR3c_TYaslwbUtI17NhK2IKwJK7zGiXCAZThPCKhsKzwf13jHViOFnPbe9bL3lDhSiqgQlytPnWaoJl0g3h_oJLmbjmssITVnJ1E_29Gous4Rw_EVZpKUm6rwGFCxl1vEA9p7WrBp5jU0HovIs95LTFRlQ',
+  },
+  {
+    id: 'ev3',
+    type: 'Meetup',
+    date: 'APR 18',
+    title: 'Open Source Contribution Night',
+    description: 'Monthly meetup to collaborate on open source projects. Bring a PR or start one.',
+    slots: 15,
+    total: 40,
+    status: 'Open',
+    location: 'Rooftop Lounge',
+    accent: '#74facb',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCyENExTqDtoPgcm5nWzFqYCTIRFSbzmt41nIWHDgRTjWX8uSafcHb9rBFoGB6Al9amVPPF-QZXmHuAyme642ZKhf_n2v2esKFcgW1ys-uVfpGshzCH12SU_EOcSh7UYYNO0jR1Gv2Z1Q8wr203PGk1GiF8eqdL9CguEVeKMU0Hswl6olj5zZbXehtJj2hbmzutKkCZqOTyZNu6kg3D8Hi8as7IpnQUi-pdE4-DdckYYp8oTWVFvJgT-_xVHKe4AHajTnloCcvQfg',
+  },
+]
