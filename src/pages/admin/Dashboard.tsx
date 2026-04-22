@@ -1,53 +1,121 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
-import { useTheme } from '../../context/ThemeContext'
 
-type Tab = 'overview' | 'members' | 'events' | 'challenges' | 'gallery' | 'projects'
+type Tab = 'members' | 'events' | 'challenges' | 'gallery' | 'projects' | 'announcements' | 'team'
 
-interface Stats { totalMembers: number; activeEvents: number; totalEvents: number; totalChallenges: number; totalProjects: number; totalXpAwarded: number }
-interface Member { id: string; email: string; name: string; role: string; xp: number; badge: string; track: string; streak: number; challenges: number; createdAt: string }
-interface Event { id: string; type: string; date: string; title: string; description: string; slots: number; total: number; status: string; location: string; accent: string; image?: string }
-interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string }
+interface Member { id: string; email: string; name: string; role: string; xp: number; track: string; usn?: string; department?: string; year?: string; githubUrl?: string; createdAt: string }
+interface Event { id: string; type: string; date: string; title: string; description: string; slots: number; total: number; status: string; location: string; accent: string; image?: string; benefits?: string[]; schedule?: (string | { time: string; activity: string })[]; requirements?: string[]; enrollmentXp?: number; endsAt?: string | null; closedByTime?: boolean }
+interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string; status: string; enrollmentXp?: number; endsAt?: string | null; closedByTime?: boolean; requirements?: string[]; timeline?: string[]; prizes?: string[] }
 interface GalleryPhoto { id: string; tag: string; year: string; label: string; span: string; img: string }
-interface Project { id: string; title: string; description: string; status: string; tech: string[]; stars: number; forks: number; img: string }
+interface Project { id: string; title: string; description: string; status: string; tech: string[]; stars: number; forks: number; img: string; githubUrl?: string }
+interface TeamMember { id: string; name: string; role: string; dept: string; skills: string[]; tier: string; image?: string }
 
 const DIFF_COLORS: Record<string, string> = { Legendary: 'text-primary', Hard: 'text-error', Medium: 'text-secondary', Easy: 'text-tertiary-fixed' }
 
-const blankEvent = (): Partial<Event> => ({ type: 'Workshop', date: '', title: '', description: '', slots: 30, total: 30, status: 'Open', location: '', accent: '#d3ef57', image: '' })
-const blankChallenge = (): Partial<Challenge> => ({ title: '', difficulty: 'Medium', xp: 500, pool: 2500, description: '', tags: [] })
+const toCommaList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+const toLineList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+const toScheduleList = (value: unknown): (string | { time: string; activity: string })[] => {
+  const lines = toLineList(value)
+  return lines.map((line) => {
+    const dividerIndex = line.indexOf('|')
+    if (dividerIndex === -1) return line
+
+    const time = line.slice(0, dividerIndex).trim()
+    const activity = line.slice(dividerIndex + 1).trim()
+    if (!time || !activity) return line
+
+    return { time, activity }
+  })
+}
+
+const toScheduleTextareaValue = (value: unknown): string => {
+  if (typeof value === 'string') return value
+  if (!Array.isArray(value)) return ''
+
+  return value
+    .map((entry) => {
+      if (typeof entry === 'string') return entry
+      return `${entry.time} | ${entry.activity}`
+    })
+    .join('\n')
+}
+
+const blankEvent = (): Partial<Event> => ({ type: 'Workshop', date: '', title: '', description: '', slots: 30, total: 30, status: 'Open', location: '', accent: '#d3ef57', image: '', benefits: [], schedule: [], requirements: [] })
+const blankChallenge = (): Partial<Challenge> => ({
+  title: '',
+  difficulty: 'Medium',
+  xp: 500,
+  pool: 2500,
+  description: '',
+  tags: [],
+  requirements: ['Valid member account', 'Solo participation only', 'Submission via GitHub repo'],
+  timeline: [
+    'Registration|Enroll before sprint starts',
+    'Sprint|Solve within the time window',
+    'Submission|Push your final solution',
+    'Review|Panel review + auto-scoring',
+  ],
+  prizes: ['1st|₹10,000 + XP Boost', '2nd|₹5,000', '3rd|₹2,500'],
+  status: 'Open',
+})
 const blankPhoto = (): Partial<GalleryPhoto> => ({ tag: 'Workshops', year: '2026', label: '', span: '', img: '' })
-const blankProject = (): Partial<Project> => ({ title: '', description: '', status: 'Beta', tech: [], stars: 0, forks: 0, img: '' })
+const blankProject = (): Partial<Project> => ({ title: '', description: '', status: 'Beta', tech: [], stars: 0, forks: 0, img: '', githubUrl: '' })
+const blankTeamMember = (): Partial<TeamMember> => ({ name: '', role: '', dept: '', skills: [], tier: 'Operator', image: '' })
 
 const AdminDashboard = () => {
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = useState<Tab>('members')
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { theme, toggle } = useTheme()
 
   // Modal state
   const [eventModal, setEventModal] = useState<{ open: boolean; data: Partial<Event>; editing: boolean }>({ open: false, data: blankEvent(), editing: false })
   const [challengeModal, setChallengeModal] = useState<{ open: boolean; data: Partial<Challenge>; editing: boolean }>({ open: false, data: blankChallenge(), editing: false })
   const [photoModal, setPhotoModal] = useState<{ open: boolean; data: Partial<GalleryPhoto> }>({ open: false, data: blankPhoto() })
   const [projectModal, setProjectModal] = useState<{ open: boolean; data: Partial<Project>; editing: boolean }>({ open: false, data: blankProject(), editing: false })
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'event' | 'challenge' | 'photo' | 'project'; id: string } | null>(null)
+  const [teamModal, setTeamModal] = useState<{ open: boolean; data: Partial<TeamMember>; editing: boolean }>({ open: false, data: blankTeamMember(), editing: false })
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'event' | 'challenge' | 'photo' | 'project' | 'team'; id: string } | null>(null)
+  const [participantsModal, setParticipantsModal] = useState<{ open: boolean; type: 'event' | 'challenge'; id: string; title: string } | null>(null)
 
   const handleLogout = () => { logout(); navigate('/login') }
 
   // Queries
-  const { data: stats } = useQuery<Stats>({ queryKey: ['admin-stats'], queryFn: () => api.get('/admin/stats').then(r => r.data) })
   const { data: members = [] } = useQuery<Member[]>({ queryKey: ['admin-members'], queryFn: () => api.get('/admin/members').then(r => r.data), enabled: tab === 'members' })
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ['admin-events'], queryFn: () => api.get('/admin/events').then(r => r.data), enabled: tab === 'events' })
   const { data: challenges = [] } = useQuery<Challenge[]>({ queryKey: ['admin-challenges'], queryFn: () => api.get('/admin/challenges').then(r => r.data), enabled: tab === 'challenges' })
   const { data: photos = [] } = useQuery<GalleryPhoto[]>({ queryKey: ['admin-gallery'], queryFn: () => api.get('/admin/gallery').then(r => r.data), enabled: tab === 'gallery' })
   const { data: projects = [] } = useQuery<Project[]>({ queryKey: ['admin-projects'], queryFn: () => api.get('/admin/projects').then(r => r.data), enabled: tab === 'projects' })
+  const { data: team = [] } = useQuery<TeamMember[]>({ queryKey: ['admin-team'], queryFn: () => api.get('/admin/team').then(r => r.data), enabled: tab === 'team' })
 
   // Member role mutation
   const roleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: string }) => api.patch(`/admin/members/${id}/role`, { role }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-members'] }),
+  })
+  // Member XP mutation (controls leaderboard)
+  const xpMutation = useMutation({
+    mutationFn: ({ id, xp }: { id: string; xp: number }) => api.patch(`/admin/members/${id}/xp`, { xp }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-members'] }),
   })
 
@@ -103,13 +171,39 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-projects'] }); setDeleteConfirm(null) },
   })
 
+  // Team mutations
+  const createTeamMutation = useMutation({
+    mutationFn: (data: Partial<TeamMember>) => api.post('/admin/team', data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-team'] }); setTeamModal({ open: false, data: blankTeamMember(), editing: false }) },
+  })
+  const updateTeamMutation = useMutation({
+    mutationFn: (data: Partial<TeamMember>) => api.patch(`/admin/team/${data.id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-team'] }); setTeamModal({ open: false, data: blankTeamMember(), editing: false }) },
+  })
+  const deleteTeamMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/team/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-team'] }); setDeleteConfirm(null) },
+  })
+
+  const winnersMutation = useMutation({
+    mutationFn: ({ type, id, winners }: { type: 'event' | 'challenge', id: string, winners: any[] }) => 
+      api.post(`/admin/${type === 'event' ? 'events' : 'challenges'}/${id}/winners`, { winners }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-members'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-events'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-challenges'] })
+      setParticipantsModal(null)
+    }
+  })
+
   const navItems: { id: Tab; icon: string; label: string }[] = [
-    { id: 'overview', icon: 'dashboard', label: 'Overview' },
     { id: 'members', icon: 'group', label: 'Members' },
     { id: 'events', icon: 'event', label: 'Events' },
     { id: 'challenges', icon: 'terminal', label: 'Challenges' },
     { id: 'gallery', icon: 'photo_library', label: 'Gallery' },
     { id: 'projects', icon: 'science', label: 'Projects' },
+    { id: 'team', icon: 'badge', label: 'Team' },
+    { id: 'announcements', icon: 'campaign', label: 'Announcements' },
   ]
 
   return (
@@ -150,10 +244,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] text-primary font-mono uppercase">Admin</div>
               </div>
             </div>
-            <button onClick={toggle} className="w-full flex items-center px-4 py-2 text-slate-400 hover:text-primary transition-colors">
-              <span className="material-symbols-outlined mr-3 text-sm">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
-              <span className="font-mono uppercase tracking-wider text-xs font-bold">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-            </button>
+
             <Link to="/" className="flex items-center px-4 py-2 text-slate-400 hover:text-white transition-colors">
               <span className="material-symbols-outlined mr-3 text-sm">home</span>
               <span className="font-mono uppercase tracking-wider text-xs font-bold">Site Home</span>
@@ -174,62 +265,9 @@ const AdminDashboard = () => {
       </header>
 
       {/* Main */}
-      <main className="ml-64 pt-20 p-8 min-h-screen">
+      <main className="ml-64 pt-20 p-8 min-h-screen text-on-surface">
 
         {/* ── OVERVIEW ── */}
-        {tab === 'overview' && (
-          <div>
-            <div className="mb-10">
-              <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">SYSTEM OVERVIEW</div>
-              <h2 className="text-4xl font-black tracking-tighter">Mission Control</h2>
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-              {[
-                { label: 'Total Members', value: stats?.totalMembers ?? '—', icon: 'group', accent: '#d3ef57' },
-                { label: 'Total Events', value: stats?.totalEvents ?? '—', icon: 'event', accent: '#dbb8ff' },
-                { label: 'Active Events', value: stats?.activeEvents ?? '—', icon: 'event_available', accent: '#74facb' },
-                { label: 'Challenges', value: stats?.totalChallenges ?? '—', icon: 'terminal', accent: '#ffb4ab' },
-                { label: 'Projects', value: stats?.totalProjects ?? '—', icon: 'science', accent: '#d3ef57' },
-                { label: 'Total XP Awarded', value: stats?.totalXpAwarded?.toLocaleString() ?? '—', icon: 'bolt', accent: '#dbb8ff' },
-              ].map((s) => (
-                <div key={s.label} className="bg-surface-container-low p-6 border-l-4 flex flex-col gap-3" style={{ borderLeftColor: s.accent }}>
-                  <span className="material-symbols-outlined" style={{ color: s.accent }}>{s.icon}</span>
-                  <div className="text-3xl font-black" style={{ color: s.accent }}>{s.value}</div>
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <button onClick={() => setTab('events')} className="bg-surface-container p-6 border border-outline-variant/10 hover:border-primary/30 transition-all text-left group">
-                <span className="material-symbols-outlined text-primary text-2xl mb-3 block">event</span>
-                <div className="font-mono font-black uppercase text-sm group-hover:text-primary transition-colors">Manage Events</div>
-                <div className="text-xs text-on-surface-variant mt-1">Create, edit, delete events</div>
-              </button>
-              <button onClick={() => setTab('challenges')} className="bg-surface-container p-6 border border-outline-variant/10 hover:border-primary/30 transition-all text-left group">
-                <span className="material-symbols-outlined text-secondary text-2xl mb-3 block">terminal</span>
-                <div className="font-mono font-black uppercase text-sm group-hover:text-primary transition-colors">Manage Challenges</div>
-                <div className="text-xs text-on-surface-variant mt-1">Create, edit, delete sprints</div>
-              </button>
-              <button onClick={() => setTab('members')} className="bg-surface-container p-6 border border-outline-variant/10 hover:border-primary/30 transition-all text-left group">
-                <span className="material-symbols-outlined text-tertiary-fixed text-2xl mb-3 block">group</span>
-                <div className="font-mono font-black uppercase text-sm group-hover:text-primary transition-colors">View Members</div>
-                <div className="text-xs text-on-surface-variant mt-1">See all registered users, change roles</div>
-              </button>
-              <button onClick={() => setTab('gallery')} className="bg-surface-container p-6 border border-outline-variant/10 hover:border-primary/30 transition-all text-left group">
-                <span className="material-symbols-outlined text-error text-2xl mb-3 block">photo_library</span>
-                <div className="font-mono font-black uppercase text-sm group-hover:text-primary transition-colors">Manage Gallery</div>
-                <div className="text-xs text-on-surface-variant mt-1">Add & remove photos</div>
-              </button>
-              <button onClick={() => setTab('projects')} className="bg-surface-container p-6 border border-outline-variant/10 hover:border-primary/30 transition-all text-left group">
-                <span className="material-symbols-outlined text-primary text-2xl mb-3 block">science</span>
-                <div className="font-mono font-black uppercase text-sm group-hover:text-primary transition-colors">Manage Projects</div>
-                <div className="text-xs text-on-surface-variant mt-1">Add, edit & remove projects</div>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ── MEMBERS ── */}
         {tab === 'members' && (
@@ -240,12 +278,12 @@ const AdminDashboard = () => {
                 <h2 className="text-4xl font-black tracking-tighter">Members <span className="text-primary">({members.length})</span></h2>
               </div>
             </div>
-            <div className="bg-surface-container rounded-xl overflow-hidden">
+            <div className="bg-surface-container rounded-xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                <table className="w-full text-left border-collapse">
                   <thead className="bg-surface-container-high">
                     <tr>
-                      {['Operator', 'Track', 'Badge', 'XP', 'Streak', 'Challenges', 'Role', 'Joined', 'Actions'].map(h => (
+                      {['Operator', 'USN', 'Dept', 'Year', 'XP (Leaderboard)', 'Role'].map(h => (
                         <th key={h} className="px-4 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">{h}</th>
                       ))}
                     </tr>
@@ -259,33 +297,46 @@ const AdminDashboard = () => {
                               <span className="font-pixel text-xs text-primary">{m.name.split(' ').map(n => n[0]).join('')}</span>
                             </div>
                             <div>
-                              <div className="font-bold text-sm">{m.name}</div>
+                              <div className="font-bold text-sm text-white">{m.name}</div>
                               <div className="text-[10px] text-on-surface-variant font-mono">{m.email}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{m.track}</td>
-                        <td className="px-4 py-4">
-                          <span className="text-[9px] font-mono font-black px-2 py-0.5 border border-primary/30 text-primary uppercase">{m.badge}</span>
+                        <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{m.usn || '—'}</td>
+                        <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{m.department || '—'}</td>
+                        <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{m.year || '—'}</td>
+                        <td className="px-4 py-4 font-mono text-sm text-primary font-bold">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              defaultValue={m.xp}
+                              id={`xp-${m.id}`}
+                              className="w-20 bg-surface-bright/20 border border-outline-variant/30 px-2 py-1 text-xs font-mono text-white rounded-sm focus:border-primary outline-none"
+                            />
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById(`xp-${m.id}`) as HTMLInputElement
+                                const val = parseInt(el.value, 10)
+                                if (!isNaN(val)) xpMutation.mutate({ id: m.id, xp: val })
+                              }}
+                              className="text-[9px] font-mono px-2 py-1 bg-primary/10 border border-primary/30 text-primary hover:bg-primary hover:text-on-primary transition-colors uppercase"
+                            >
+                              Set XP
+                            </button>
+                          </div>
                         </td>
-                        <td className="px-4 py-4 font-mono text-sm text-primary font-bold">{m.xp.toLocaleString()}</td>
-                        <td className="px-4 py-4 font-mono text-sm text-on-surface-variant">{m.streak}d</td>
-                        <td className="px-4 py-4 font-mono text-sm text-on-surface-variant">{m.challenges}</td>
                         <td className="px-4 py-4">
-                          <span className={`text-[9px] font-mono font-black px-2 py-0.5 border uppercase ${m.role === 'admin' ? 'text-primary border-primary' : 'text-on-surface-variant border-outline-variant'}`}>
-                            {m.role}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 font-mono text-[10px] text-on-surface-variant">
-                          {new Date(m.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-4">
-                          <button
-                            onClick={() => roleMutation.mutate({ id: m.id, role: m.role === 'admin' ? 'member' : 'admin' })}
-                            className="text-[9px] font-mono px-2 py-1 border border-outline-variant/30 text-on-surface-variant hover:border-primary hover:text-primary transition-colors uppercase"
-                          >
-                            {m.role === 'admin' ? 'Demote' : 'Promote'}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-mono font-black px-2 py-0.5 border uppercase ${m.role === 'admin' ? 'text-primary border-primary' : 'text-on-surface-variant border-outline-variant'}`}>
+                              {m.role}
+                            </span>
+                            <button
+                              onClick={() => roleMutation.mutate({ id: m.id, role: m.role === 'admin' ? 'member' : 'admin' })}
+                              className="text-[9px] font-mono px-2 py-1 border border-outline-variant/30 text-on-surface-variant hover:border-primary hover:text-primary transition-colors uppercase"
+                            >
+                              {m.role === 'admin' ? 'Demote' : 'Promote'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -304,7 +355,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">EVENT MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Events <span className="text-primary">({events.length})</span></h2>
               </div>
-              <button
+              <button 
                 onClick={() => setEventModal({ open: true, data: blankEvent(), editing: false })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -315,23 +366,49 @@ const AdminDashboard = () => {
 
             <div className="space-y-3">
               {events.map((ev) => (
-                <div key={ev.id} className="bg-surface-container p-5 border border-outline-variant/10 flex items-center gap-6">
+                <div key={ev.id} className="bg-surface-container p-5 border border-outline-variant/10 flex items-center gap-6 group hover:border-primary/30 transition-all">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <span className="text-[9px] font-mono font-black px-2 py-0.5 bg-primary/10 text-primary uppercase">{ev.type}</span>
                       <span className={`text-[9px] font-mono px-2 py-0.5 border uppercase ${ev.status === 'Open' ? 'border-tertiary-fixed/30 text-tertiary-fixed' : 'border-error/30 text-error'}`}>{ev.status}</span>
                     </div>
-                    <div className="font-bold text-white">{ev.title}</div>
+                    <Link to={`/events/${ev.id}`} className="font-bold text-white group-hover:text-primary transition-colors inline-block">{ev.title}</Link>
                     <div className="text-[10px] font-mono text-on-surface-variant mt-1">{ev.date} · {ev.location} · {ev.slots}/{ev.total} slots</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Link
+                      to={`/events/${ev.id}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-mono uppercase font-black hover:border-primary/40 hover:text-white transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      Open
+                    </Link>
+                    <button 
+                      onClick={() => setParticipantsModal({ open: true, type: 'event', id: ev.id, title: ev.title })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 text-secondary border border-secondary/30 text-[10px] font-mono uppercase font-black hover:bg-secondary hover:text-white transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">groups</span>
+                      Participants
+                    </button>
+                    <button 
                       onClick={() => setEventModal({ open: true, data: { ...ev }, editing: true })}
                       className="p-2 text-on-surface-variant hover:text-white hover:bg-surface-bright transition-colors"
+                      title="Edit"
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    <button
+                    <button 
+                      onClick={() => {
+                        const newStatus = ev.status === 'Open' ? 'Closed' : 'Open';
+                        updateEventMutation.mutate({ id: ev.id, status: newStatus, endsAt: newStatus === 'Open' ? null : ev.endsAt });
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase font-black transition-all ${ev.status === 'Open' ? 'border-error/30 text-error hover:bg-error hover:text-white' : 'border-primary/30 text-primary hover:bg-primary hover:text-on-primary'}`}
+                      title={ev.status === 'Open' ? 'End Registration' : (ev.closedByTime ? 'Resume Registration (Time Closed)' : 'Resume Registration')}
+                    >
+                      <span className="material-symbols-outlined text-sm">{ev.status === 'Open' ? 'block' : 'play_arrow'}</span>
+                      {ev.status === 'Open' ? 'Close' : (ev.closedByTime ? 'Resume (Time)' : 'Resume')}
+                    </button>
+                    <button 
                       onClick={() => setDeleteConfirm({ type: 'event', id: ev.id })}
                       className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
@@ -352,7 +429,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">CHALLENGE MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Challenges <span className="text-primary">({challenges.length})</span></h2>
               </div>
-              <button
+              <button 
                 onClick={() => setChallengeModal({ open: true, data: blankChallenge(), editing: false })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -363,23 +440,49 @@ const AdminDashboard = () => {
 
             <div className="space-y-3">
               {challenges.map((ch) => (
-                <div key={ch.id} className="bg-surface-container p-5 border border-outline-variant/10 flex items-center gap-6">
+                <div key={ch.id} className="bg-surface-container p-5 border border-outline-variant/10 flex items-center gap-6 group hover:border-primary/30 transition-all">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <span className={`text-[9px] font-mono font-black px-2 py-0.5 border uppercase ${DIFF_COLORS[ch.difficulty] ?? 'text-on-surface-variant'} border-current`}>{ch.difficulty}</span>
-                      <span className="text-[9px] font-mono text-on-surface-variant">{ch.participants} participants</span>
+                      <span className={`text-[9px] font-mono px-2 py-0.5 border uppercase ${ch.status === 'Open' ? 'border-tertiary-fixed/30 text-tertiary-fixed' : 'border-error/30 text-error'}`}>{ch.status}</span>
                     </div>
-                    <div className="font-bold text-white">{ch.title}</div>
+                    <Link to={`/challenges/${ch.id}`} className="font-bold text-white group-hover:text-primary transition-colors inline-block">{ch.title}</Link>
                     <div className="text-[10px] font-mono text-on-surface-variant mt-1">+{ch.xp} XP · ₹{ch.pool.toLocaleString()} pool · {ch.tags.join(', ')}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Link
+                      to={`/challenges/${ch.id}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-on-surface-variant border border-white/10 text-[10px] font-mono uppercase font-black hover:border-primary/40 hover:text-white transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      Open
+                    </Link>
+                    <button 
+                      onClick={() => setParticipantsModal({ open: true, type: 'challenge', id: ch.id, title: ch.title })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/30 text-[10px] font-mono uppercase font-black hover:bg-primary hover:text-on-primary transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                      Winners
+                    </button>
+                    <button 
                       onClick={() => setChallengeModal({ open: true, data: { ...ch }, editing: true })}
                       className="p-2 text-on-surface-variant hover:text-white hover:bg-surface-bright transition-colors"
+                      title="Edit"
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    <button
+                    <button 
+                      onClick={() => {
+                        const newStatus = ch.status === 'Open' ? 'Closed' : 'Open';
+                        updateChallengeMutation.mutate({ id: ch.id, status: newStatus, endsAt: newStatus === 'Open' ? null : ch.endsAt });
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase font-black transition-all ${ch.status === 'Open' ? 'border-error/30 text-error hover:bg-error hover:text-white' : 'border-primary/30 text-primary hover:bg-primary hover:text-on-primary'}`}
+                      title={ch.status === 'Open' ? 'Close Challenge' : (ch.closedByTime ? 'Resume Challenge (Time Closed)' : 'Resume Challenge')}
+                    >
+                      <span className="material-symbols-outlined text-sm">{ch.status === 'Open' ? 'block' : 'play_arrow'}</span>
+                      {ch.status === 'Open' ? 'Close' : (ch.closedByTime ? 'Resume (Time)' : 'Resume')}
+                    </button>
+                    <button 
                       onClick={() => setDeleteConfirm({ type: 'challenge', id: ch.id })}
                       className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
@@ -391,6 +494,7 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
+
         {/* ── GALLERY ── */}
         {tab === 'gallery' && (
           <div>
@@ -399,7 +503,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">GALLERY MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Gallery <span className="text-primary">({photos.length})</span></h2>
               </div>
-              <button
+              <button 
                 onClick={() => setPhotoModal({ open: true, data: blankPhoto() })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -409,13 +513,13 @@ const AdminDashboard = () => {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {photos.map((ph) => (
-                <div key={ph.id} className="bg-surface-container border border-outline-variant/10 overflow-hidden group relative">
+                <div key={ph.id} className="bg-surface-container border border-outline-variant/10 overflow-hidden group relative shadow-lg">
                   <img src={ph.img} alt={ph.label} className="w-full h-40 object-cover grayscale group-hover:grayscale-0 transition-all duration-300" />
                   <div className="p-3">
                     <div className="text-xs font-bold text-white truncate">{ph.label}</div>
                     <div className="text-[10px] font-mono text-on-surface-variant mt-0.5">{ph.tag} · {ph.year}</div>
                   </div>
-                  <button
+                  <button 
                     onClick={() => setDeleteConfirm({ type: 'photo', id: ph.id })}
                     className="absolute top-2 right-2 p-1.5 bg-black/60 text-on-surface-variant hover:text-error hover:bg-error/20 transition-colors opacity-0 group-hover:opacity-100"
                   >
@@ -435,7 +539,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">PROJECT MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Projects <span className="text-primary">({projects.length})</span></h2>
               </div>
-              <button
+              <button 
                 onClick={() => setProjectModal({ open: true, data: blankProject(), editing: false })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -445,26 +549,26 @@ const AdminDashboard = () => {
             </div>
             <div className="space-y-3">
               {projects.map((pr) => (
-                <div key={pr.id} className="bg-surface-container p-5 border border-outline-variant/10 flex items-center gap-6">
+                <div key={pr.id} className="bg-surface-container p-5 border border-outline-variant/10 flex items-center gap-6 group hover:border-primary/30 transition-all">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <span className={`text-[9px] font-mono font-black px-2 py-0.5 border uppercase ${pr.status === 'Live' ? 'text-tertiary-fixed border-tertiary-fixed/40' : pr.status === 'Beta' ? 'text-secondary border-secondary/40' : 'text-on-surface-variant border-outline-variant'}`}>{pr.status}</span>
                       <span className="text-[9px] font-mono text-on-surface-variant">★ {pr.stars} · ⑂ {pr.forks}</span>
                     </div>
-                    <div className="font-bold text-white">{pr.title}</div>
+                    <div className="font-bold text-white group-hover:text-primary transition-colors">{pr.title}</div>
                     <div className="text-[10px] font-mono text-on-surface-variant mt-1 line-clamp-1">{pr.description}</div>
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {pr.tech.map(t => <span key={t} className="text-[8px] font-mono px-1.5 py-0.5 border border-white/10 text-on-surface-variant">{t}</span>)}
+                       {pr.tech.map(t => <span key={t} className="text-[8px] font-mono px-1.5 py-0.5 border border-white/10 text-on-surface-variant bg-white/5">{t}</span>)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <button 
                       onClick={() => setProjectModal({ open: true, data: { ...pr }, editing: true })}
                       className="p-2 text-on-surface-variant hover:text-white hover:bg-surface-bright transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    <button
+                    <button 
                       onClick={() => setDeleteConfirm({ type: 'project', id: pr.id })}
                       className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
@@ -477,15 +581,66 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* ── TEAM ── */}
+        {tab === 'team' && (
+          <TeamTab 
+            team={team} 
+            onEdit={(m) => setTeamModal({ open: true, data: m, editing: true })} 
+            onDelete={(id) => setDeleteConfirm({ type: 'team', id })}
+            onNew={() => setTeamModal({ open: true, data: blankTeamMember(), editing: false })}
+          />
+        )}
+
+        {/* ── ANNOUNCEMENTS ── */}
+        {tab === 'announcements' && <AnnouncementsTab />}
+
       </main>
+
+      {/* ── MODALS (Outside Main) ── */}
+
+      {/* ── DELETE CONFIRM ── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className="bg-[#151c24] border border-error/20 w-full max-w-sm p-8 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-error text-2xl">warning</span>
+              <h3 className="font-mono font-black uppercase text-sm text-error">Confirm Delete</h3>
+            </div>
+            <p className="text-sm text-on-surface-variant font-body mb-6">
+              This will permanently delete this {deleteConfirm.type}. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setDeleteConfirm(null)} 
+                className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (deleteConfirm.type === 'event') deleteEventMutation.mutate(deleteConfirm.id)
+                  else if (deleteConfirm.type === 'challenge') deleteChallengeMutation.mutate(deleteConfirm.id)
+                  else if (deleteConfirm.type === 'photo') deletePhotoMutation.mutate(deleteConfirm.id)
+                  else if (deleteConfirm.type === 'team') deleteTeamMutation.mutate(deleteConfirm.id)
+                  else deleteProjectMutation.mutate(deleteConfirm.id)
+                }}
+                disabled={deleteEventMutation.isPending || deleteChallengeMutation.isPending || deletePhotoMutation.isPending || deleteProjectMutation.isPending || deleteTeamMutation.isPending}
+                className="px-4 py-2 text-xs font-mono uppercase bg-error text-white hover:brightness-110 disabled:opacity-50 font-black transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── EVENT MODAL ── */}
       {eventModal.open && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
           <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
               <h3 className="font-mono font-black uppercase text-sm">{eventModal.editing ? 'Edit Event' : 'New Event'}</h3>
-              <button onClick={() => setEventModal({ open: false, data: blankEvent(), editing: false })} className="text-on-surface-variant hover:text-white">
+              <button onClick={() => setEventModal({ open: false, data: blankEvent(), editing: false })} className="text-on-surface-variant hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -496,49 +651,143 @@ const AdminDashboard = () => {
                 { field: 'date', label: 'Date (e.g. MAY 24)', type: 'text' },
                 { field: 'location', label: 'Location', type: 'text' },
                 { field: 'description', label: 'Description', type: 'textarea' },
-                { field: 'image', label: 'Image URL (optional)', type: 'text' },
+                { field: 'image', label: 'Image (URL or Upload)', type: 'image-upload' },
                 { field: 'slots', label: 'Available Slots', type: 'number' },
                 { field: 'total', label: 'Total Capacity', type: 'number' },
-                { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Full', 'Closing Soon'] },
-              ] as Array<{ field: keyof Event; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
+                { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Full', 'Closing Soon', 'Closed'] },
+                { field: 'enrollmentXp', label: 'Registration Bonus (XP)', type: 'number' },
+                { field: 'benefits', label: "Benefits / What you'll get (comma separated)", type: 'tags' },
+                { field: 'requirements', label: 'Requirements (comma separated)', type: 'tags' },
+                { field: 'schedule', label: 'Schedule (Line format: 10:00 AM | Hacking Begins)', type: 'schedule' },
+                { field: 'endsAt', label: 'Closing Date & Time (Override Status)', type: 'datetime-local' },
+              ] as Array<{ field: keyof Event; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => {
+                let value: string | number = '';
+                if (type === 'datetime-local') {
+                  const val = eventModal.data[field];
+                  if (val) {
+                    const d = new Date(val as string);
+                    if (!isNaN(d.getTime())) {
+                      // Use local time instead of UTC to avoid shifting dates in the UI
+                      const year = d.getFullYear();
+                      const month = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      const hours = String(d.getHours()).padStart(2, '0');
+                      const minutes = String(d.getMinutes()).padStart(2, '0');
+                      value = `${year}-${month}-${day}T${hours}:${minutes}`;
+                    }
+                  }
+                } else if (type === 'tags') {
+                  const val = eventModal.data[field];
+                  value = Array.isArray(val) ? val.join(', ') : (val as string ?? '');
+                } else if (type === 'schedule') {
+                  value = toScheduleTextareaValue(eventModal.data.schedule);
+                } else {
+                  value = (eventModal.data[field] as string | number) ?? '';
+                }
+
+                return (
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
                   {type === 'textarea' ? (
-                    <textarea
-                      value={(eventModal.data[field] as string) ?? ''}
+                    <textarea 
+                      value={value}
                       onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body resize-none h-20 focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
                     />
                   ) : type === 'select' ? (
-                    <select
-                      value={(eventModal.data[field] as string) ?? ''}
+                    <select 
+                      value={value}
                       onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
                     >
                       {options!.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                  ) : type === 'tags' ? (
+                    <input 
+                      type="text"
+                      value={value}
+                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value as unknown as string[] } }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                    />
+                  ) : type === 'schedule' ? (
+                    <textarea 
+                      placeholder="9:00 AM | Kickoff&#10;10:00 AM | Hacking Starts"
+                      value={value}
+                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, schedule: e.target.value as unknown as Event['schedule'] } }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-32 focus:outline-none"
+                    />
+                  ) : type === 'image-upload' ? (
+                    <div className="space-y-2">
+                       <input 
+                        type="text"
+                        placeholder="Paste URL or Drive link..."
+                        value={(eventModal.data[field] as string) ?? ''}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (val.includes('drive.google.com/file/d/')) {
+                             const id = val.split('/d/')[1]?.split('/')[0];
+                             if (id) val = `https://lh3.googleusercontent.com/d/${id}`;
+                          }
+                          setEventModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
+                        }}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      />
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setEventModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                      />
+                    </div>
                   ) : (
-                    <input
+                    <input 
                       type={type}
                       value={(eventModal.data[field] as string | number) ?? ''}
                       onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                     />
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
-            {eventModal.data.image && (
-              <div className="px-6 pb-4">
-                <img src={eventModal.data.image} alt="preview" className="w-full h-32 object-cover border border-outline-variant/20" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-              </div>
-            )}
-            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end">
-              <button onClick={() => setEventModal({ open: false, data: blankEvent(), editing: false })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
+            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
+              <button 
+                onClick={() => setEventModal({ open: false, data: blankEvent(), editing: false })} 
+                className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors"
+              >
                 Cancel
               </button>
-              <button
-                onClick={() => eventModal.editing ? updateEventMutation.mutate(eventModal.data) : createEventMutation.mutate(eventModal.data)}
+              <button 
+                onClick={() => {
+                  const eventId = eventModal.data.id;
+                  const sanitized = {
+                    id: eventId,
+                    type: eventModal.data.type,
+                    date: eventModal.data.date,
+                    title: eventModal.data.title,
+                    description: eventModal.data.description,
+                    slots: eventModal.data.slots,
+                    total: eventModal.data.total,
+                    status: eventModal.data.status,
+                    location: eventModal.data.location,
+                    accent: eventModal.data.accent,
+                    image: eventModal.data.image,
+                    enrollmentXp: eventModal.data.enrollmentXp,
+                    endsAt: eventModal.data.endsAt,
+                    benefits: toCommaList(eventModal.data.benefits),
+                    requirements: toCommaList(eventModal.data.requirements),
+                    schedule: toScheduleList(eventModal.data.schedule),
+                  };
+                  eventModal.editing ? updateEventMutation.mutate(sanitized) : createEventMutation.mutate(sanitized);
+                }}
                 disabled={createEventMutation.isPending || updateEventMutation.isPending}
                 className="px-4 py-2 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black"
               >
@@ -553,9 +802,9 @@ const AdminDashboard = () => {
       {challengeModal.open && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
           <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
               <h3 className="font-mono font-black uppercase text-sm">{challengeModal.editing ? 'Edit Challenge' : 'New Challenge'}</h3>
-              <button onClick={() => setChallengeModal({ open: false, data: blankChallenge(), editing: false })} className="text-on-surface-variant hover:text-white">
+              <button onClick={() => setChallengeModal({ open: false, data: blankChallenge(), editing: false })} className="text-on-surface-variant hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -564,51 +813,114 @@ const AdminDashboard = () => {
                 { field: 'title', label: 'Title', type: 'text' },
                 { field: 'difficulty', label: 'Difficulty', type: 'select', options: ['Legendary', 'Hard', 'Medium', 'Easy'] },
                 { field: 'description', label: 'Description', type: 'textarea' },
-                { field: 'xp', label: 'XP Reward', type: 'number' },
+                { field: 'xp', label: 'Completion XP', type: 'number' },
+                { field: 'enrollmentXp', label: 'Registration Bonus (XP)', type: 'number' },
                 { field: 'pool', label: 'Prize Pool (₹)', type: 'number' },
+                { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Closed'] },
+                { field: 'endsAt', label: 'Closing Date & Time (Override Status)', type: 'datetime-local' },
                 { field: 'tags', label: 'Tags (comma separated)', type: 'tags' },
-              ] as Array<{ field: keyof Challenge; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
+                { field: 'requirements', label: 'Requirements (comma separated)', type: 'tags' },
+                { field: 'timeline', label: 'Timeline (Line format: Phase | Description)', type: 'timeline' },
+                { field: 'prizes', label: 'Prize Distribution (Line format: Place | Reward)', type: 'timeline' },
+              ] as Array<{ field: keyof Challenge; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => {
+                let value: string | number = '';
+                if (type === 'datetime-local') {
+                  const val = challengeModal.data[field];
+                  if (val) {
+                    const d = new Date(val as string);
+                    if (!isNaN(d.getTime())) {
+                      const year = d.getFullYear();
+                      const month = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      const hours = String(d.getHours()).padStart(2, '0');
+                      const minutes = String(d.getMinutes()).padStart(2, '0');
+                      value = `${year}-${month}-${day}T${hours}:${minutes}`;
+                    }
+                  }
+                } else if (type === 'tags') {
+                  const val = challengeModal.data[field];
+                  value = Array.isArray(val) ? val.join(', ') : (val as string ?? '');
+                } else if (type === 'timeline') {
+                   const val = challengeModal.data[field];
+                   value = Array.isArray(val) ? val.join('\n') : (val as string ?? '');
+                } else {
+                  value = (challengeModal.data[field] as string | number) ?? '';
+                }
+
+                return (
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
                   {type === 'textarea' ? (
-                    <textarea
-                      value={(challengeModal.data[field] as string) ?? ''}
+                    <textarea 
+                      value={value}
                       onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body resize-none h-20 focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
                     />
                   ) : type === 'select' ? (
-                    <select
-                      value={(challengeModal.data[field] as string) ?? ''}
+                    <select 
+                      value={value}
                       onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
                     >
                       {options!.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : type === 'tags' ? (
-                    <input
+                    <input 
                       type="text"
-                      value={Array.isArray(challengeModal.data.tags) ? challengeModal.data.tags.join(', ') : ''}
-                      onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
-                      placeholder="SQL, Redis, Algorithms"
+                      value={value}
+                      onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value as unknown as string[] } }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      placeholder={field === 'tags' ? 'e.g. SQL, Redis, Algorithms' : 'Comma separated values'}
+                    />
+                  ) : type === 'timeline' ? (
+                    <textarea
+                      placeholder={field === 'timeline' ? 'Registration | Enroll before sprint starts\nSprint | Solve within the time window' : '1st | ₹10,000 + XP Boost\n2nd | ₹5,000'}
+                      value={value}
+                      onChange={(e) => setChallengeModal(s => ({
+                        ...s,
+                        data: {
+                          ...s.data,
+                          [field]: e.target.value as unknown as string[],
+                        },
+                      }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-24 focus:outline-none"
                     />
                   ) : (
-                    <input
+                    <input 
                       type={type}
-                      value={(challengeModal.data[field] as string | number) ?? ''}
+                      value={value}
                       onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                     />
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
-            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end">
+            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
               <button onClick={() => setChallengeModal({ open: false, data: blankChallenge(), editing: false })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
                 Cancel
               </button>
-              <button
-                onClick={() => challengeModal.editing ? updateChallengeMutation.mutate(challengeModal.data) : createChallengeMutation.mutate(challengeModal.data)}
+              <button 
+                onClick={() => {
+                  const challengeId = challengeModal.data.id;
+                  const sanitized = {
+                    id: challengeId,
+                    title: challengeModal.data.title,
+                    difficulty: challengeModal.data.difficulty,
+                    xp: challengeModal.data.xp,
+                    pool: challengeModal.data.pool,
+                    description: challengeModal.data.description,
+                    status: challengeModal.data.status,
+                    enrollmentXp: challengeModal.data.enrollmentXp,
+                    endsAt: challengeModal.data.endsAt,
+                    tags: toCommaList(challengeModal.data.tags),
+                    requirements: toCommaList(challengeModal.data.requirements),
+                    timeline: toLineList(challengeModal.data.timeline),
+                    prizes: toLineList(challengeModal.data.prizes),
+                  }
+                  challengeModal.editing ? updateChallengeMutation.mutate(sanitized) : createChallengeMutation.mutate(sanitized)
+                }}
                 disabled={createChallengeMutation.isPending || updateChallengeMutation.isPending}
                 className="px-4 py-2 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black"
               >
@@ -619,84 +931,83 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── DELETE CONFIRM ── */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#151c24] border border-error/20 w-full max-w-sm p-8">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-error text-2xl">warning</span>
-              <h3 className="font-mono font-black uppercase text-sm text-error">Confirm Delete</h3>
-            </div>
-            <p className="text-sm text-on-surface-variant font-body mb-6">
-              This will permanently delete this {deleteConfirm.type}. This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 transition-colors">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (deleteConfirm.type === 'event') deleteEventMutation.mutate(deleteConfirm.id)
-                  else if (deleteConfirm.type === 'challenge') deleteChallengeMutation.mutate(deleteConfirm.id)
-                  else if (deleteConfirm.type === 'photo') deletePhotoMutation.mutate(deleteConfirm.id)
-                  else deleteProjectMutation.mutate(deleteConfirm.id)
-                }}
-                disabled={deleteEventMutation.isPending || deleteChallengeMutation.isPending || deletePhotoMutation.isPending || deleteProjectMutation.isPending}
-                className="px-4 py-2 text-xs font-mono uppercase bg-error text-white hover:brightness-110 disabled:opacity-50 font-black transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* ── PHOTO MODAL ── */}
       {photoModal.open && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
           <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
               <h3 className="font-mono font-black uppercase text-sm">Add Photo</h3>
-              <button onClick={() => setPhotoModal({ open: false, data: blankPhoto() })} className="text-on-surface-variant hover:text-white">
+              <button onClick={() => setPhotoModal({ open: false, data: blankPhoto() })} className="text-on-surface-variant hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <div className="p-6 space-y-4">
               {([
                 { field: 'label', label: 'Label / Caption', type: 'text' },
-                { field: 'img', label: 'Image URL', type: 'text' },
+                { field: 'img', label: 'Image URL / Drive Folder Link / Upload', type: 'image-upload' },
                 { field: 'tag', label: 'Tag', type: 'select', options: ['Hackathons', 'Workshops', 'Meetups', 'Competitions'] },
                 { field: 'year', label: 'Year', type: 'text' },
-                { field: 'span', label: 'Grid Span (optional)', type: 'select', options: ['', 'row-span-2', 'col-span-2'] },
               ] as Array<{ field: keyof GalleryPhoto; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
                   {type === 'select' ? (
-                    <select
+                    <select 
                       value={(photoModal.data[field] as string) ?? ''}
                       onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
                     >
-                      {options!.map(o => <option key={o} value={o}>{o || '(none)'}</option>)}
+                      {options!.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                  ) : type === 'image-upload' ? (
+                    <div className="space-y-2">
+                       <input 
+                        type="text"
+                        placeholder="Paste image URL or Drive folder link..."
+                        value={(photoModal.data[field] as string) ?? ''}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (val.includes('drive.google.com/file/d/')) {
+                             const id = val.split('/d/')[1]?.split('/')[0];
+                             if (id) val = `https://lh3.googleusercontent.com/d/${id}`;
+                          }
+                          setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
+                        }}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      />
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                      />
+                      <p className="text-[10px] font-mono text-on-surface-variant">
+                        Drive folder import: provide a public folder link to auto-add all images from that folder.
+                      </p>
+                    </div>
                   ) : (
-                    <input
+                    <input 
                       type="text"
                       value={(photoModal.data[field] as string) ?? ''}
                       onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                     />
                   )}
                 </div>
               ))}
-              {photoModal.data.img && (
-                <img src={photoModal.data.img} alt="preview" className="w-full h-32 object-cover mt-2 border border-outline-variant/20" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-              )}
+              {photoModal.data.img && <img src={photoModal.data.img} alt="Preview" className="w-full h-32 object-cover border border-outline-variant/20" />}
             </div>
-            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end">
+            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
               <button onClick={() => setPhotoModal({ open: false, data: blankPhoto() })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
                 Cancel
               </button>
-              <button
+              <button 
                 onClick={() => createPhotoMutation.mutate(photoModal.data)}
                 disabled={createPhotoMutation.isPending}
                 className="px-4 py-2 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black"
@@ -712,9 +1023,9 @@ const AdminDashboard = () => {
       {projectModal.open && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
           <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
               <h3 className="font-mono font-black uppercase text-sm">{projectModal.editing ? 'Edit Project' : 'New Project'}</h3>
-              <button onClick={() => setProjectModal({ open: false, data: blankProject(), editing: false })} className="text-on-surface-variant hover:text-white">
+              <button onClick={() => setProjectModal({ open: false, data: blankProject(), editing: false })} className="text-on-surface-variant hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -723,52 +1034,83 @@ const AdminDashboard = () => {
                 { field: 'title', label: 'Title', type: 'text' },
                 { field: 'description', label: 'Description', type: 'textarea' },
                 { field: 'status', label: 'Status', type: 'select', options: ['Live', 'Beta', 'Archived'] },
-                { field: 'img', label: 'Image URL', type: 'text' },
-                { field: 'stars', label: 'Stars', type: 'number' },
-                { field: 'forks', label: 'Forks', type: 'number' },
+                { field: 'githubUrl', label: 'GitHub URL (auto-fetches ★ & ⑂)', type: 'text' },
+                { field: 'img', label: 'Image (URL or Upload)', type: 'image-upload' },
+                { field: 'stars', label: 'Stars (auto-set from GitHub)', type: 'number' },
+                { field: 'forks', label: 'Forks (auto-set from GitHub)', type: 'number' },
                 { field: 'tech', label: 'Tech Stack (comma separated)', type: 'tags' },
               ] as Array<{ field: keyof Project; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
                   {type === 'textarea' ? (
-                    <textarea
+                    <textarea 
                       value={(projectModal.data[field] as string) ?? ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body resize-none h-20 focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
                     />
                   ) : type === 'select' ? (
-                    <select
+                    <select 
                       value={(projectModal.data[field] as string) ?? ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
                     >
                       {options!.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : type === 'tags' ? (
-                    <input
+                     <input 
                       type="text"
                       value={Array.isArray(projectModal.data.tech) ? projectModal.data.tech.join(', ') : ''}
-                      onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, tech: e.target.value.split(',').map(t => t.trim()).filter(Boolean) } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
-                      placeholder="React, TypeScript, Node.js"
+                      onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, tech: e.target.value.split(',').map(t => t.trim()) } }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      placeholder="e.g. React, TypeScript, Tailwind"
                     />
+                  ) : type === 'image-upload' ? (
+                    <div className="space-y-2">
+                       <input 
+                        type="text"
+                        placeholder="Paste URL..."
+                        value={(projectModal.data[field] as string) ?? ''}
+                        onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      />
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                      />
+                    </div>
                   ) : (
-                    <input
+                    <input 
                       type={type}
                       value={(projectModal.data[field] as string | number) ?? ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                     />
                   )}
                 </div>
               ))}
+              {projectModal.data.img && <img src={projectModal.data.img} alt="Preview" className="w-full h-32 object-cover border border-outline-variant/20" />}
             </div>
-            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end">
-              <button onClick={() => setProjectModal({ open: false, data: blankProject(), editing: false })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
+            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
+              <button 
+                onClick={() => setProjectModal({ open: false, data: blankProject(), editing: false })} 
+                className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors"
+              >
                 Cancel
               </button>
-              <button
-                onClick={() => projectModal.editing ? updateProjectMutation.mutate(projectModal.data) : createProjectMutation.mutate(projectModal.data)}
+              <button 
+                onClick={() => {
+                  const sanitized = { ...projectModal.data, tech: projectModal.data.tech?.filter(Boolean) }
+                  projectModal.editing ? updateProjectMutation.mutate(sanitized) : createProjectMutation.mutate(sanitized)
+                }}
                 disabled={createProjectMutation.isPending || updateProjectMutation.isPending}
                 className="px-4 py-2 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black"
               >
@@ -779,6 +1121,417 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* ── TEAM MODAL ── */}
+      {teamModal.open && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
+              <h3 className="font-mono font-black uppercase text-sm">{teamModal.editing ? 'Edit Team Member' : 'New Team Member'}</h3>
+              <button onClick={() => setTeamModal({ open: false, data: blankTeamMember(), editing: false })} className="text-on-surface-variant hover:text-white transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Static fields */}
+              {([
+                { field: 'name', label: 'Name', type: 'text' },
+                { field: 'role', label: 'Role Title (e.g. Student Coordinator)', type: 'text' },
+                { field: 'dept', label: 'Department (e.g. B.Tech CSE)', type: 'text' },
+                { field: 'tier', label: 'Category / Tier', type: 'select', options: ['Faculty', 'Student Coordinators', 'Core', 'Technical', 'Marketing', 'Creative', 'Operator'] },
+                { field: 'skills', label: 'Skills (comma separated)', type: 'text' },
+              ] as Array<{ field: keyof TeamMember; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
+                <div key={field}>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
+                  {type === 'select' ? (
+                    <select 
+                      value={(teamModal.data[field] as string) ?? ''}
+                      onChange={(e) => setTeamModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
+                    >
+                      {options!.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input 
+                      type="text"
+                      value={field === 'skills' ? (teamModal.data[field] as string[])?.join(', ') : (teamModal.data[field] as string) ?? ''}
+                      onChange={(e) => setTeamModal(s => ({ 
+                        ...s, 
+                        data: { 
+                          ...s.data, 
+                          [field]: field === 'skills' ? e.target.value.split(',').map(s => s.trim()) : e.target.value 
+                        } 
+                      }))}
+                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                    />
+                  )}
+                </div>
+              ))}
+
+              {/* Photo upload field */}
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">Photo</label>
+                <div className="space-y-2">
+                  <input 
+                    type="text"
+                    placeholder="Paste image URL..."
+                    value={teamModal.data.image ?? ''}
+                    onChange={(e) => setTeamModal(s => ({ ...s, data: { ...s.data, image: e.target.value } }))}
+                    className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                  />
+                  <input 
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onloadend = () => setTeamModal(s => ({ ...s, data: { ...s.data, image: reader.result as string } }))
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                    className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                  />
+                  {teamModal.data.image && (
+                    <div className="mt-2 flex items-center gap-3">
+                      <img src={teamModal.data.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-primary/40" />
+                      <span className="text-[10px] font-mono text-primary">Photo ready</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
+              <button onClick={() => setTeamModal({ open: false, data: blankTeamMember(), editing: false })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const sanitized = { ...teamModal.data, skills: teamModal.data.skills?.filter(Boolean) }
+                  teamModal.editing ? updateTeamMutation.mutate(sanitized) : createTeamMutation.mutate(sanitized)
+                }}
+                disabled={createTeamMutation.isPending || updateTeamMutation.isPending}
+                className="px-4 py-2 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black"
+              >
+                {teamModal.editing ? 'Save Changes' : 'Create Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {participantsModal?.open && (
+        <ParticipantsModal 
+          {...participantsModal} 
+          onClose={() => setParticipantsModal(null)} 
+          onSubmit={(winners) => winnersMutation.mutate({ type: participantsModal.type, id: participantsModal.id, winners })}
+          isPending={winnersMutation.isPending}
+        />
+      )}
+
+    </div>
+  )
+}
+
+/* ─── Team Tab Sub-component ────────────────────────────────────────────── */
+function TeamTab({ team, onEdit, onDelete, onNew }: { team: TeamMember[], onEdit: (m: TeamMember) => void, onDelete: (id: string) => void, onNew: () => void }) {
+  return (
+    <div>
+      <div className="mb-8 flex justify-between items-end">
+        <div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">TEAM ROSTER</div>
+          <h2 className="text-4xl font-black tracking-tighter">Team Operator Hub</h2>
+        </div>
+        <button onClick={onNew} className="px-6 py-3 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white transition-colors font-black">
+          Add New Member
+        </button>
+      </div>
+
+      <div className="bg-surface-container rounded-xl overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left order-collapse">
+            <thead className="bg-surface-container-high">
+              <tr>
+                {['Name', 'Role', 'Department', 'Category', 'Skills', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant/10">
+              {team.map((m) => (
+                <tr key={m.id} className="hover:bg-surface-bright/20 transition-colors">
+                  <td className="px-4 py-4 font-bold text-sm text-white">{m.name}</td>
+                  <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{m.role}</td>
+                  <td className="px-4 py-4 font-mono text-xs text-on-surface-variant">{m.dept}</td>
+                  <td className="px-4 py-4">
+                    <span className="text-[9px] font-mono font-black px-2 py-0.5 border border-primary/30 text-primary uppercase">{m.tier}</span>
+                  </td>
+                  <td className="px-4 py-4 max-w-xs">
+                    <div className="flex flex-wrap gap-1">
+                      {m.skills.map(s => <span key={s} className="text-[8px] font-mono bg-white/5 px-1.5 py-0.5 text-on-surface-variant border border-white/5">{s}</span>)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex gap-2">
+                      <button onClick={() => onEdit(m)} className="p-1.5 text-on-surface-variant hover:text-primary transition-all">
+                        <span className="material-symbols-outlined text-lg">edit</span>
+                      </button>
+                      <button onClick={() => onDelete(m.id)} className="p-1.5 text-on-surface-variant hover:text-error transition-all">
+                        <span className="material-symbols-outlined text-lg">delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Announcements Sub-component ─────────────────────────────────────────── */
+interface Ann { id: string; text: string; active: boolean }
+
+function AnnouncementsTab() {
+  const queryClient = useQueryClient()
+  const [newText, setNewText] = useState('')
+
+  const { data: anns = [] } = useQuery<Ann[]>({ queryKey: ['admin-announcements'], queryFn: () => api.get('/admin/announcements').then(r => r.data) })
+
+  const createMut = useMutation({
+    mutationFn: (text: string) => api.post('/admin/announcements', { text }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-announcements'] }); setNewText('') },
+  })
+  const toggleMut = useMutation({
+    mutationFn: (a: Ann) => api.patch(`/admin/announcements/${a.id}`, { active: !a.active }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-announcements'] }),
+  })
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/announcements/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-announcements'] }),
+  })
+
+  return (
+    <div>
+      <div className="mb-8">
+        <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">HOMEPAGE TICKER</div>
+        <h2 className="text-4xl font-black tracking-tighter">Announcements</h2>
+        <p className="text-sm text-on-surface-variant mt-1 font-body">These appear in the scrolling ticker bar at the top of the public site.</p>
+      </div>
+
+      <div className="flex gap-3 mb-8">
+        <input 
+          className="flex-1 bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none" 
+          placeholder="Type a new announcement…" 
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && newText.trim() && createMut.mutate(newText.trim())}
+        />
+        <button 
+          onClick={() => newText.trim() && createMut.mutate(newText.trim())}
+          disabled={createMut.isPending || !newText.trim()}
+          className="px-6 py-3 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black shadow-lg"
+        >
+          Add
+        </button>
+      </div>
+
+      <div className="bg-surface-container rounded-xl overflow-hidden shadow-xl">
+        {anns.length === 0 ? (
+          <div className="p-8 text-center text-on-surface-variant font-mono text-xs">No announcements yet.</div>
+        ) : (
+          anns.map((a) => (
+            <div key={a.id} className="px-6 py-4 border-b border-outline-variant/10 last:border-none flex items-center justify-between gap-4 hover:bg-surface-bright/20 transition-colors">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <button 
+                  onClick={() => toggleMut.mutate(a)}
+                  className={`shrink-0 w-5 h-5 border-2 flex items-center justify-center transition-colors ${a.active ? 'border-primary bg-primary/20' : 'border-outline-variant'}`}
+                >
+                  {a.active && <span className="material-symbols-outlined text-primary text-xs">check</span>}
+                </button>
+                <span className={`text-sm font-body truncate ${a.active ? 'text-white' : 'text-on-surface-variant line-through opacity-50'}`}>{a.text}</span>
+              </div>
+              <button onClick={() => deleteMut.mutate(a.id)} className="text-on-surface-variant hover:text-error transition-colors shrink-0">
+                <span className="material-symbols-outlined text-lg">delete</span>
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Participants / Winners Modal ────────────────────────────────────────── */
+interface Participant { id: string; name: string; email: string; usn?: string; verified?: boolean; position?: number; awardXp?: number }
+
+function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { type: 'event' | 'challenge', id: string, title: string, onClose: () => void, onSubmit: (winners: any[]) => void, isPending: boolean }) {
+  const { data: participants = [], isLoading } = useQuery<Participant[]>({
+    queryKey: ['admin', type, id, 'participants'],
+    queryFn: () => api.get(`/admin/${type === 'event' ? 'events' : 'challenges'}/${id}/participants`).then(r => r.data)
+  })
+
+  const [winners, setWinners] = useState<{ userId: string; position: number; awardXp: number }[]>([])
+  const [draggedUser, setDraggedUser] = useState<Participant | null>(null)
+
+  useEffect(() => {
+    if (participants.length > 0) {
+      const existingWinners = participants
+        .filter(p => p.position !== null && p.position !== undefined)
+        .map(p => ({ userId: p.id, position: p.position!, awardXp: p.awardXp || 0 }))
+        .sort((a, b) => a.position - b.position)
+      
+      if (existingWinners.length > 0) {
+        setWinners(existingWinners)
+      }
+    }
+  }, [participants])
+
+  const addWinner = (p: Participant) => {
+    if (winners.find(w => w.userId === p.id)) return
+    setWinners([...winners, { userId: p.id, position: winners.length + 1, awardXp: 0 }])
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (draggedUser) addWinner(draggedUser)
+  }
+
+  const removeWinner = (userId: string) => {
+    setWinners(winners.filter(w => w.userId !== userId).map((w, i) => ({ ...w, position: i + 1 })))
+  }
+
+  const updateAward = (userId: string, xp: number) => {
+    setWinners(winners.map(w => w.userId === userId ? { ...w, awardXp: xp } : w))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-6">
+      <div className="bg-[#151c24] border border-white/10 w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#192028]">
+          <div>
+            <h3 className="font-mono font-black uppercase text-sm flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-lg">{type === 'event' ? 'groups' : 'workspace_premium'}</span>
+              {type === 'event' ? 'Event Participants' : 'Challenge Winners'}
+            </h3>
+            <p className="text-[10px] text-on-surface-variant font-mono uppercase tracking-wider mt-1">{title}</p>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-white transition-colors">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-hidden flex divide-x divide-white/5">
+          {/* List of all participants */}
+          <div className="w-1/2 flex flex-col">
+            <div className="p-4 bg-white/5 border-b border-white/5">
+              <div className="text-[10px] font-mono uppercase font-black text-on-surface-variant tracking-widest">Enrolled Operators ({participants.length})</div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {isLoading ? (
+                <div className="h-full flex items-center justify-center font-mono text-xs text-on-surface-variant">Loading...</div>
+              ) : participants.length === 0 ? (
+                <div className="h-full flex items-center justify-center font-mono text-xs text-on-surface-variant">No participants yet.</div>
+              ) : (
+                participants.map(p => (
+                  <div 
+                    key={p.id} 
+                    draggable
+                    onDragStart={() => setDraggedUser(p)}
+                    onDragEnd={() => setDraggedUser(null)}
+                    className="flex items-center justify-between p-3 bg-white/5 border border-white/5 hover:border-primary/30 transition-all group cursor-grab active:cursor-grabbing"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-primary/10 flex items-center justify-center border border-primary/20">
+                        <span className="font-pixel text-[10px] text-primary">{p.name[0]}</span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">{p.name}</div>
+                        <div className="text-[10px] font-mono text-on-surface-variant uppercase">{p.usn || 'No USN'}</div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => addWinner(p)}
+                      disabled={winners.some(w => w.userId === p.id)}
+                      className="opacity-0 group-hover:opacity-100 disabled:opacity-30 p-2 text-primary hover:bg-primary/20 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-lg">add_circle</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Winner assignment */}
+          <div 
+            className={`w-1/2 flex flex-col transition-all ${draggedUser ? 'bg-primary/5 border-2 border-dashed border-primary/40 shadow-inner shadow-primary/10' : 'bg-black/20 border-l border-white/5'}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+          >
+            <div className="p-4 bg-white/5 border-b border-white/5">
+              <div className="text-[10px] font-mono uppercase font-black text-primary tracking-widest">Selected Winners & XP Awards</div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {winners.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <span className="material-symbols-outlined text-4xl text-white/10 mb-2">military_tech</span>
+                  <p className="text-xs font-mono text-on-surface-variant">Click the (+) on the left to add a winner and assign their rank & XP.</p>
+                </div>
+              ) : (
+                winners.map((w) => {
+                  const p = participants.find(p => p.id === w.userId)
+                  return (
+                    <div key={w.userId} className="p-4 bg-primary/5 border border-primary/20 relative">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 bg-primary text-on-primary rounded-full flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20">
+                            {w.position}
+                          </div>
+                          <div className="text-sm font-black text-white">{p?.name}</div>
+                        </div>
+                        <button onClick={() => removeWinner(w.userId)} className="text-on-surface-variant hover:text-error transition-colors">
+                          <span className="material-symbols-outlined text-lg">close</span>
+                        </button>
+                      </div>
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <label className="text-[9px] font-mono uppercase text-on-surface-variant block mb-1">Position / Rank</label>
+                          <input 
+                            type="number"
+                            value={w.position}
+                            onChange={(e) => setWinners(winners.map(win => win.userId === w.userId ? { ...win, position: Number(e.target.value) } : win))}
+                            className="w-full bg-white/5 border border-white/10 p-2 text-xs font-mono text-white outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[9px] font-mono uppercase text-on-surface-variant block mb-1">Award XP</label>
+                          <input 
+                            type="number"
+                            value={w.awardXp}
+                            onChange={(e) => updateAward(w.userId, Number(e.target.value))}
+                            className="w-full bg-white/5 border border-white/10 p-2 text-xs font-mono text-primary outline-none focus:border-primary"
+                            placeholder="e.g. 500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            <div className="p-4 border-t border-white/5 bg-white/5">
+              <button 
+                onClick={() => onSubmit(winners)}
+                disabled={winners.length === 0 || isPending}
+                className="w-full py-3 bg-primary text-on-primary font-black font-mono text-xs uppercase tracking-widest hover:bg-white disabled:opacity-50 transition-all shadow-xl shadow-primary/10"
+              >
+                {isPending ? 'Reflecting XP...' : `Finalize & Award ${winners.length} Winners`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

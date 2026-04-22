@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { AuthProvider } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
 import { ProtectedRoute, AdminRoute } from './components/ui/ProtectedRoute'
 import CustomCursor from './components/ui/CustomCursor'
 import HomePage from './pages/HomePage'
@@ -25,7 +24,6 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ThemeProvider>
         <AuthProvider>
           <CustomCursor />
           <Routes>
@@ -53,7 +51,6 @@ function App() {
             } />
           </Routes>
         </AuthProvider>
-        </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
   )

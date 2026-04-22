@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import logoImg from '../assets/logo.jpeg'
 
 const Login = () => {
   const { login, isLoading } = useAuth()
@@ -16,8 +17,9 @@ const Login = () => {
     e.preventDefault()
     setError('')
     try {
-      await login(email, password)
-      navigate(from, { replace: true })
+      const u = await login(email, password)
+      if (u.role === 'admin') navigate('/admin', { replace: true })
+      else navigate(from, { replace: true })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       setError(msg ?? 'Login failed. Check your credentials.')
@@ -46,10 +48,12 @@ const Login = () => {
 
           {/* Brand Identity */}
           <div className="text-center mb-10 relative z-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-sm bg-surface-variant border border-outline-variant mb-6 group transition-all duration-500 hover:border-primary">
-              <span className="material-symbols-outlined text-primary text-4xl transform group-hover:scale-110 transition-transform">
-                terminal
-              </span>
+            <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-surface-variant/50 border border-outline-variant mb-6 group transition-all duration-500 hover:border-primary overflow-hidden shadow-xl">
+              <img 
+                src={logoImg} 
+                alt="Code Dynamos Logo" 
+                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" 
+              />
             </div>
             <h1 className="font-headline font-extrabold text-3xl tracking-[0.2em] text-on-surface uppercase italic">
               CODE DYNAMOS
@@ -136,35 +140,6 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-10">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-outline-variant/30" />
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase">
-              <span className="bg-surface-container-lowest px-4 text-on-surface-variant font-label tracking-[0.2em]">
-                External Auth
-              </span>
-            </div>
-          </div>
-
-          {/* Social Logins */}
-          <div className="grid grid-cols-2 gap-4 relative z-10">
-            <button className="flex items-center justify-center gap-3 bg-surface-variant border border-outline-variant hover:border-primary/50 py-3 rounded-sm transition-all duration-200 group">
-              <img
-                alt="Google"
-                className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnbNwy7JyqJn0T1_m7VUuxtMwFFY4HUDUiWLRa-r2LzwpYvIqONPpE8-koSicUwFNYs4uNsbfp8CAs4_ZTm-EhjoI9Zovmy7xxyIpmYz9m45veLM04E763GSzSfXllH95Q7qI1Zav-fOs58BWQxzsNlcw4veYLabRdC-ZII5NiWU5ICwsB0NmXFODgYSUXJ123OUAP-T3Heo_V0ILhd-y4NbSRhcqVmuz3FtmBr90oW823fuh6P3nUaAbZ-czQ7nCQwOnmM7B2eQ"
-              />
-              <span className="font-label text-[10px] uppercase tracking-wider text-on-surface">Google</span>
-            </button>
-            <button className="flex items-center justify-center gap-3 bg-surface-variant border border-outline-variant hover:border-primary/50 py-3 rounded-sm transition-all duration-200 group">
-              <span className="material-symbols-outlined text-on-surface group-hover:text-primary text-sm transition-colors">
-                terminal
-              </span>
-              <span className="font-label text-[10px] uppercase tracking-wider text-on-surface">GitHub</span>
-            </button>
-          </div>
 
           {/* Footer Link */}
           <p className="text-center mt-10 font-label text-[11px] text-on-surface-variant tracking-wide relative z-10">
@@ -176,17 +151,13 @@ const Login = () => {
         </div>
 
         {/* System Status Bar */}
-        <div className="mt-8 flex justify-between items-center px-4 opacity-60">
+        <div className="mt-8 flex justify-center items-center px-4 opacity-60">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#d3ef57]" />
-              <span className="font-label text-[9px] uppercase tracking-[0.2em] text-on-surface">Node: 01_ACTIVE</span>
+              <span className="font-label text-[9px] uppercase tracking-[0.2em] text-on-surface">Welcome Back</span>
             </div>
-            <span className="font-label text-[9px] uppercase tracking-[0.2em] text-on-surface-variant">V2.4.0-PRO</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[10px] text-primary">verified_user</span>
-            <span className="font-label text-[9px] uppercase tracking-[0.2em] text-on-surface">ENC_AES_256</span>
+            <span className="font-label text-[9px] uppercase tracking-[0.2em] text-on-surface-variant">- SJ</span>
           </div>
         </div>
       </main>

@@ -9,11 +9,32 @@ export const users = pgTable('users', {
   googleId:         text('google_id').unique(),
   xp:               integer('xp').notNull().default(0),
   rank:             integer('rank').notNull().default(0),
-  challenges:       integer('challenges').notNull().default(0),
-  streak:           integer('streak').notNull().default(0),
-  badge:            text('badge').notNull().default('Member'),
+  usn:              text('usn'),
+  department:       text('department'),
+  year:             text('year'),
+  githubUrl:        text('github_url'),
+  // Map to existing production columns to avoid destructive migration
+  leetcodeProfile:  text('leetcode_url').unique(),
+  leetcodeSolved:   integer('leetcode_solved').notNull().default(0),
   track:            text('track').notNull().default('Fullstack'),
   createdAt:        timestamp('created_at').defaultNow(),
+})
+
+export const announcements = pgTable('announcements', {
+  id: text('id').primaryKey(),
+  text: text('text').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow()
+})
+
+export const teamMembers = pgTable('team_members', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  role: text('role').notNull(),
+  dept: text('department').notNull(),
+  skills: text('skills').array().notNull().default([]),
+  tier: text('category').notNull().default('Core'),
+  image: text('image'),
 })
 
 export const events = pgTable('events', {
@@ -30,6 +51,11 @@ export const events = pgTable('events', {
   image:       text('image'),
   platform:    text('platform'),
   externalUrl: text('external_url'),
+  benefits:    text('benefits').array().notNull().default([]),
+  schedule:    text('schedule').array().notNull().default([]),
+  requirements:text('requirements').array().notNull().default([]),
+  enrollmentXp: integer('enrollment_xp').notNull().default(0),
+  endsAt:       timestamp('ends_at'),
 })
 
 export const challenges = pgTable('challenges', {
@@ -42,6 +68,12 @@ export const challenges = pgTable('challenges', {
   participants:integer('participants').notNull().default(0),
   tags:        text('tags').array().notNull().default([]),   // text[]
   description: text('description').notNull(),
+  requirements:text('requirements').array().notNull().default([]),
+  timeline:    text('timeline').array().notNull().default([]),
+  prizes:      text('prizes').array().notNull().default([]),
+  status:      text('status').notNull().default('Open'), // Open | Closed
+  enrollmentXp:integer('enrollment_xp').notNull().default(0),
+  endsAt:      timestamp('ends_at'),
 })
 
 export const projects = pgTable('projects', {
@@ -53,6 +85,7 @@ export const projects = pgTable('projects', {
   stars:       integer('stars').notNull().default(0),
   forks:       integer('forks').notNull().default(0),
   img:         text('img').notNull().default(''),
+  githubUrl:   text('github_url'),
 })
 
 export const gallery = pgTable('gallery', {
@@ -68,13 +101,19 @@ export const gallery = pgTable('gallery', {
 export const userEnrolledEvents = pgTable('user_enrolled_events', {
   userId:  text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   eventId: text('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  enrolledAt: timestamp('enrolled_at').defaultNow(),
+  position:   integer('position'), // 1, 2, 3...
+  awardXp:    integer('award_xp').notNull().default(0),
 })
 
 export const userActiveChallenges = pgTable('user_active_challenges', {
   userId:      text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   challengeId: text('challenge_id').notNull().references(() => challenges.id, { onDelete: 'cascade' }),
   completed:   boolean('completed').notNull().default(false),
-  progress:    integer('progress').notNull().default(0),
+  verified:    boolean('verified').notNull().default(false),
+  enrolledAt: timestamp('enrolled_at').defaultNow(),
+  position:   integer('position'), // 1, 2, 3...
+  awardXp:    integer('award_xp').notNull().default(0),
 })
 
 

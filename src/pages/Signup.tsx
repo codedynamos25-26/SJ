@@ -1,6 +1,8 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import logoImg from '../assets/logo.jpeg'
 
 const tracks = [
   { id: 'Frontend', label: 'Frontend', icon: 'web' },
@@ -8,6 +10,7 @@ const tracks = [
   { id: 'ML', label: 'ML / AI', icon: 'psychology' },
   { id: 'Security', label: 'Security', icon: 'shield' },
   { id: 'Fullstack', label: 'Fullstack', icon: 'hub' },
+  { id: 'Others', label: 'Others', icon: 'more_horiz' },
 ]
 
 const Signup = () => {
@@ -18,6 +21,9 @@ const Signup = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [usn, setUsn] = useState('')
+  const [department, setDepartment] = useState('')
+  const [year, setYear] = useState('')
   const [selectedTrack, setSelectedTrack] = useState('')
   const [error, setError] = useState('')
 
@@ -35,7 +41,15 @@ const Signup = () => {
     }
 
     try {
-      await signup({ email, name, password, track: selectedTrack })
+      await signup({ 
+        email, 
+        name, 
+        password, 
+        track: selectedTrack,
+        usn: usn || undefined,
+        department: department || undefined,
+        year: year || undefined
+      })
       navigate('/dashboard', { replace: true })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -62,8 +76,12 @@ const Signup = () => {
 
           {/* Header */}
           <div className="text-center mb-10 relative z-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-sm bg-surface-variant border border-outline-variant mb-6 group hover:border-primary transition-all duration-500">
-              <span className="material-symbols-outlined text-primary text-4xl">deployed_code</span>
+            <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-surface-variant/50 border border-outline-variant mb-6 group transition-all duration-500 hover:border-primary overflow-hidden shadow-xl">
+              <img 
+                src={logoImg} 
+                alt="Code Dynamos Logo" 
+                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" 
+              />
             </div>
             <h1 className="font-headline font-extrabold text-3xl tracking-[0.2em] text-on-surface uppercase italic">
               ESTABLISH CREDENTIALS
@@ -125,6 +143,49 @@ const Signup = () => {
               </div>
             </div>
 
+            {/* USN / Dept / Year (For Students) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant ml-1" htmlFor="usn">
+                  USN
+                </label>
+                <input
+                  className="w-full bg-surface-variant/50 border border-outline-variant focus:border-primary focus:ring-0 rounded-sm py-4 px-4 text-on-surface font-body placeholder-on-surface-variant/30 transition-all text-sm"
+                  id="usn"
+                  placeholder="1CR22CS001"
+                  type="text"
+                  value={usn}
+                  onChange={(e) => setUsn(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant ml-1" htmlFor="dept">
+                  Department
+                </label>
+                <input
+                  className="w-full bg-surface-variant/50 border border-outline-variant focus:border-primary focus:ring-0 rounded-sm py-4 px-4 text-on-surface font-body placeholder-on-surface-variant/30 transition-all text-sm"
+                  id="dept"
+                  placeholder="CSE / ISE / AIML"
+                  type="text"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant ml-1" htmlFor="year">
+                  Year
+                </label>
+                <input
+                  className="w-full bg-surface-variant/50 border border-outline-variant focus:border-primary focus:ring-0 rounded-sm py-4 px-4 text-on-surface font-body placeholder-on-surface-variant/30 transition-all text-sm"
+                  id="year"
+                  placeholder="1 / 2 / 3 / 4"
+                  type="text"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                />
+              </div>
+            </div>
+
             {/* Password row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -174,13 +235,13 @@ const Signup = () => {
               <label className="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant ml-1">
                 Primary Discipline
               </label>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {tracks.map((t) => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => setSelectedTrack(t.id)}
-                    className={`flex flex-col items-center gap-1.5 py-3 rounded-sm border text-[9px] font-mono font-bold uppercase tracking-wider transition-all ${
+                    className={`flex flex-col items-center gap-1.5 py-3 rounded-sm border text-[8px] font-mono font-bold uppercase tracking-wider transition-all ${
                       selectedTrack === t.id
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-outline-variant bg-surface-variant/30 text-on-surface-variant hover:border-primary/50 hover:text-on-surface'
@@ -191,6 +252,24 @@ const Signup = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Conditional Input for Others */}
+              <AnimatePresence>
+                {selectedTrack === 'Others' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="pt-2"
+                  >
+                    <input
+                      className="w-full bg-surface-variant/30 border border-outline-variant focus:border-primary focus:ring-0 rounded-sm py-3 px-4 text-on-surface font-body placeholder-on-surface-variant/40 transition-all text-xs"
+                      placeholder="WHAT? (PLEASE SPECIFY)"
+                      autoFocus
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <button
@@ -214,12 +293,14 @@ const Signup = () => {
         </div>
 
         {/* Status */}
-        <div className="mt-8 flex justify-between items-center px-4 opacity-60">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#d3ef57]" />
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface">Registration Open</span>
+        <div className="mt-8 flex justify-center items-center px-4 opacity-60">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#d3ef57]" />
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface">Welcome</span>
+            </div>
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant">- SJ</span>
           </div>
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant">WEB WEAVE '26</span>
         </div>
       </main>
 

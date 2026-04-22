@@ -1,22 +1,37 @@
 import { Router } from 'express'
-import { leaderboard } from '../data/leaderboard'
+import { db, users } from '../db'
+import { desc, sql } from 'drizzle-orm'
 
 const router = Router()
 
-// GET /api/leaderboard?season=Season+3+%E2%80%94+2026
-router.get('/', (req, res): void => {
-  const season = (req.query.season as string) ?? 'Season 3 — 2026'
-  const data = leaderboard[season]
-  if (!data) {
-    res.status(404).json({ error: 'Season not found', available: Object.keys(leaderboard) })
-    return
-  }
-  res.json({ season, entries: data })
-})
+// GET /api/leaderboard — returns all members ordered by XP (live from DB)
+router.get('/', async (_req, res) => {
+  const rows = await db
+    .select({
+      id:           users.id,
+      name:         users.name,
+      xp:           users.xp,
+      rank:         users.rank,
+      track:        users.track,
+      department:   users.department,
+      year:         users.year,
+      githubUrl:    users.githubUrl,
+      leetcodeProfile: users.leetcodeProfile,
+      leetcodeSolved: users.leetcodeSolved,
+      completedChallenges: sql<number>`0`,   // placeholder – extend when challenge completions are tracked
+      streak:       sql<number>`0`,           // placeholder
+    })
+    .from(users)
+    .orderBy(desc(users.xp))
 
-// GET /api/leaderboard/seasons
-router.get('/seasons', (_req, res) => {
-  res.json(Object.keys(leaderboard))
+  // Assign badge based on XP
+  const withBadge = rows.map((u, i) => ({
+    ...u,
+    position: i + 1,
+    badge: u.xp >= 15000 ? 'Legendary' : u.xp >= 10000 ? 'Architect' : u.xp >= 7000 ? 'Elite' : u.xp >= 4000 ? 'Expert' : u.xp >= 1000 ? 'Senior' : 'Member',
+  }))
+
+  res.json(withBadge)
 })
 
 export default router

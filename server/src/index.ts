@@ -11,6 +11,9 @@ import galleryRouter from './routes/gallery'
 import leaderboardRouter from './routes/leaderboard'
 import dashboardRouter from './routes/dashboard'
 import adminRouter from './routes/admin'
+import announcementsRouter from './routes/announcements'
+import userRouter from './routes/user'
+import statsRouter from './routes/stats'
 
 const app = express()
 const PORT = process.env.PORT ?? 4000
@@ -26,7 +29,8 @@ const allowedOrigins = process.env.FRONTEND_URL
 
 
 app.use(cors({ origin: allowedOrigins, credentials: true }))
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
@@ -41,6 +45,9 @@ app.use('/api/gallery', galleryRouter)
 app.use('/api/leaderboard', leaderboardRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/announcements', announcementsRouter)
+app.use('/api/user', userRouter)
+app.use('/api/stats', statsRouter)
 
 // 404 fallback
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }))

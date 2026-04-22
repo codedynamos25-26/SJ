@@ -29,11 +29,11 @@ const GalleryPage = () => {
   return (
     <PublicLayout>
       {/* Header */}
-      <section className="py-20 px-8 bg-[#0A0A0A] border-b border-white/5">
+      <section className="py-10 px-8 bg-[#0A0A0A] border-b border-white/5">
         <div className="max-w-[1440px] mx-auto">
-          <div className="text-[10px] font-mono font-black tracking-[0.5em] text-primary uppercase mb-4">MISSION ARCHIVE</div>
-          <h1 className="text-6xl font-black italic uppercase tracking-tighter mb-4">Gallery</h1>
-          <div className="h-1 w-24 bg-primary mb-8" />
+          <div className="text-[11px] font-black tracking-[0.5em] text-primary uppercase mb-4 font-['Space_Mono']">MISSION ARCHIVE</div>
+          <h1 className="text-6xl md:text-7xl font-black italic uppercase tracking-tighter mb-6 font-['Orbitron']">Gallery</h1>
+          <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mb-8" />
           <p className="text-on-surface-variant font-body max-w-xl">
             Visual record of Code Dynamos events, hackathons, and community milestones.
           </p>
@@ -41,7 +41,7 @@ const GalleryPage = () => {
       </section>
 
       {/* Tabs */}
-      <section className="sticky top-[5.5rem] z-30 bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 px-8 py-4">
+      <section className="sticky top-\[100px\] z-30 bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 px-8 py-4">
         <div className="max-w-[1440px] mx-auto flex gap-3 overflow-x-auto no-scrollbar">
           {TABS.map((t) => (
             <button

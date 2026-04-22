@@ -8,6 +8,11 @@ interface ChallengeDetail {
   id: string; title: string; difficulty: string; xp: number
   pool: number; completions: number; participants: number
   tags: string[]; description: string; enrolledByMe: boolean
+  requirements?: string[]
+  timeline?: string[]
+  prizes?: string[]
+  status: string
+  winners?: Array<{ id: string; name: string; position: number; awardXp: number }>
 }
 
 const diffStyle: Record<string, { text: string; border: string; bg: string; icon: string }> = {
@@ -17,20 +22,14 @@ const diffStyle: Record<string, { text: string; border: string; bg: string; icon
   Easy:      { text: 'text-tertiary-fixed', border: 'border-tertiary-fixed', bg: 'bg-tertiary-fixed', icon: 'code' },
 }
 
-// Static supplemental content per challenge
-const extras: Record<string, { prizes: { place: string; reward: string }[]; requirements: string[]; timeline: { phase: string; desc: string }[] }> = {
-  ch1: {
-    prizes: [{ place: '1st', reward: '₹15,000 + Legendary Badge' }, { place: '2nd', reward: '₹8,000' }, { place: '3rd', reward: '₹5,000' }],
-    requirements: ['5+ years experience recommended', 'System design fundamentals', 'Proficiency in any compiled language'],
-    timeline: [{ phase: 'Registration', desc: 'Open until challenge starts' }, { phase: 'Sprint', desc: '72-hour coding window' }, { phase: 'Review', desc: '5-day evaluation period' }, { phase: 'Results', desc: 'Announced on leaderboard' }],
-  },
-}
-
-const defaultExtra = {
-  prizes: [{ place: '1st', reward: '₹10,000 + XP Boost' }, { place: '2nd', reward: '₹5,000' }, { place: '3rd', reward: '₹2,500' }],
-  requirements: ['Valid member account', 'Solo participation only', 'Submission via GitHub repo'],
-  timeline: [{ phase: 'Registration', desc: 'Enroll before sprint starts' }, { phase: 'Sprint', desc: 'Solve within the time window' }, { phase: 'Submission', desc: 'Push your final solution' }, { phase: 'Review', desc: 'Panel review + auto-scoring' }],
-}
+const defaultRequirements = ['Valid member account', 'Solo participation only', 'Submission via GitHub repo']
+const defaultTimeline = [
+  'Registration|Enroll before sprint starts',
+  'Sprint|Solve within the time window',
+  'Submission|Push your final solution',
+  'Review|Panel review + auto-scoring',
+]
+const defaultPrizes = ['1st|₹10,000 + XP Boost', '2nd|₹5,000', '3rd|₹2,500']
 
 const ChallengeDetailPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -46,12 +45,12 @@ const ChallengeDetailPage = () => {
 
   const enrollMutation = useMutation({
     mutationFn: () => api.post(`/challenges/${id}/enroll`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['challenge', id] }),
-  })
-
-  const withdrawMutation = useMutation({
-    mutationFn: () => api.delete(`/challenges/${id}/enroll`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['challenge', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['challenge', id] })
+      queryClient.invalidateQueries({ queryKey: ['challenges'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
   })
 
   const handleAction = () => {
@@ -59,9 +58,7 @@ const ChallengeDetailPage = () => {
       navigate('/login', { state: { from: { pathname: `/challenges/${id}` } } })
       return
     }
-    if (challenge?.enrolledByMe) {
-      withdrawMutation.mutate()
-    } else {
+    if (!challenge?.enrolledByMe) {
       enrollMutation.mutate()
     }
   }
@@ -87,10 +84,26 @@ const ChallengeDetailPage = () => {
     )
   }
 
-  const isPending = enrollMutation.isPending || withdrawMutation.isPending
+  const isPending = enrollMutation.isPending
   const completionPct = challenge.participants > 0 ? Math.round((challenge.completions / challenge.participants) * 100) : 0
   const style = diffStyle[challenge.difficulty] ?? diffStyle['Medium']
-  const extra = extras[challenge.id] ?? defaultExtra
+  const timeline = (challenge.timeline && challenge.timeline.length > 0 ? challenge.timeline : defaultTimeline)
+    .map((item) => {
+      const [phase, ...rest] = item.split('|')
+      return { phase: (phase ?? '').trim(), desc: rest.join('|').trim() }
+    })
+    .filter((item) => item.phase && item.desc)
+
+  const requirements = challenge.requirements && challenge.requirements.length > 0
+    ? challenge.requirements
+    : defaultRequirements
+
+  const prizes = (challenge.prizes && challenge.prizes.length > 0 ? challenge.prizes : defaultPrizes)
+    .map((item) => {
+      const [place, ...rest] = item.split('|')
+      return { place: (place ?? '').trim(), reward: rest.join('|').trim() }
+    })
+    .filter((item) => item.place && item.reward)
 
   return (
     <PublicLayout>
@@ -112,6 +125,9 @@ const ChallengeDetailPage = () => {
             </span>
             <span className="text-[10px] font-mono px-3 py-1 border border-white/10 text-on-surface-variant uppercase">
               {challenge.participants} participants
+            </span>
+            <span className={`text-[10px] font-mono px-3 py-1 border uppercase ${challenge.status === 'Open' ? 'border-tertiary-fixed/40 text-tertiary-fixed' : 'border-error/40 text-error'}`}>
+              {challenge.status}
             </span>
             {challenge.enrolledByMe && (
               <span className="text-[10px] font-mono px-3 py-1 border border-primary/40 text-primary uppercase">
@@ -146,10 +162,32 @@ const ChallengeDetailPage = () => {
               <p className="text-base font-body text-on-surface leading-relaxed">{challenge.description}</p>
             </div>
 
+            {challenge.winners && challenge.winners.length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="material-symbols-outlined text-6xl text-primary">workspace_premium</span>
+                </div>
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-primary mb-6">Sprint Finalists / Winners</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {challenge.winners.map((w) => (
+                    <div key={w.id} className="flex items-center gap-4 bg-black/40 p-4 border border-white/5 group hover:border-primary/40 transition-all">
+                      <div className="w-10 h-10 bg-primary text-on-primary rounded-full flex items-center justify-center font-black shadow-lg shadow-primary/20">
+                        {w.position}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-black text-white group-hover:text-primary transition-colors">{w.name}</div>
+                        <div className="text-[9px] font-mono text-on-surface-variant uppercase">Claimed +{w.awardXp} XP</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">Timeline</h2>
               <div className="space-y-0 border-l-2 border-white/10 pl-6">
-                {extra.timeline.map((t, i) => (
+                {timeline.map((t, i) => (
                   <div key={i} className="relative pb-6 last:pb-0">
                     <div className={`absolute -left-[27px] top-1 w-3 h-3 border-2 bg-[#0A0A0A] ${style.border}`} />
                     <div className={`text-[10px] font-mono uppercase tracking-widest mb-1 ${style.text}`}>{t.phase}</div>
@@ -162,7 +200,7 @@ const ChallengeDetailPage = () => {
             <div>
               <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">Requirements</h2>
               <ul className="space-y-2">
-                {extra.requirements.map((r) => (
+                {requirements.map((r) => (
                   <li key={r} className="flex items-start gap-3">
                     <span className="material-symbols-outlined text-sm text-on-surface-variant mt-0.5">check_circle</span>
                     <span className="font-body text-sm text-on-surface-variant">{r}</span>
@@ -208,15 +246,18 @@ const ChallengeDetailPage = () => {
 
               <button
                 onClick={handleAction}
-                disabled={isPending}
+                disabled={isPending || challenge.status === 'Closed' || challenge.enrolledByMe}
                 className={`w-full py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all disabled:opacity-40 ${
                   challenge.enrolledByMe
-                    ? 'border-error text-error hover:bg-error hover:text-white'
+                    ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
+                    : challenge.status === 'Closed'
+                    ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
                     : `${style.text} ${style.border} hover:${style.bg} hover:text-on-primary`
                 }`}
               >
                 {isPending ? 'Processing...'
-                  : challenge.enrolledByMe ? 'Withdraw'
+                  : challenge.status === 'Closed' ? 'Sprint Finished'
+                  : challenge.enrolledByMe ? 'Active'
                   : !user ? 'Login to Join'
                   : 'Initialize Sprint'}
               </button>
@@ -232,7 +273,7 @@ const ChallengeDetailPage = () => {
             <div className="lab-panel p-6">
               <h3 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">Prize Distribution</h3>
               <div className="space-y-3">
-                {extra.prizes.map((p) => (
+                {prizes.map((p) => (
                   <div key={p.place} className="flex items-center gap-3">
                     <span className={`text-[10px] font-mono font-black w-8 ${style.text}`}>{p.place}</span>
                     <span className="text-sm font-body text-on-surface">{p.reward}</span>

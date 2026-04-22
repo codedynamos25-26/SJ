@@ -1,21 +1,12 @@
 import { Router } from 'express'
-import { team } from '../data/team'
+import { db, teamMembers } from '../db'
 
 const router = Router()
 
 // GET /api/team
-router.get('/', (_req, res) => {
-  res.json(team)
-})
-
-// GET /api/team/leadership
-router.get('/leadership', (_req, res) => {
-  res.json(team.filter((m) => m.tier === 'leadership'))
-})
-
-// GET /api/team/core
-router.get('/core', (_req, res) => {
-  res.json(team.filter((m) => m.tier === 'core'))
+router.get('/', async (_req, res) => {
+  const all = await db.select().from(teamMembers)
+  res.json(all)
 })
 
 export default router

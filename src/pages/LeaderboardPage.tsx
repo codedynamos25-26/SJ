@@ -1,151 +1,274 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import PublicLayout from '../components/layouts/PublicLayout'
+import { api } from '../lib/api'
+import { motion, AnimatePresence } from 'framer-motion'
 
-const SEASONS = ['Season 3 — 2026', 'Season 2 — 2025', 'Season 1 — 2024'] as const
-type Season = typeof SEASONS[number]
-
-const podium = [
-  { rank: 2, name: 'Priya Sharma', xp: 14820, challenges: 38, badge: 'Architect', gradient: 'from-secondary/20 to-secondary/5', accent: '#dbb8ff' },
-  { rank: 1, name: 'Karan Nair', xp: 18540, challenges: 47, badge: 'Legendary', gradient: 'from-primary/25 to-primary/5', accent: '#d3ef57' },
-  { rank: 3, name: 'Arjun Mehta', xp: 12350, challenges: 31, badge: 'Elite', gradient: 'from-tertiary-fixed/20 to-tertiary-fixed/5', accent: '#74facb' },
-]
-
-const entries = [
-  { rank: 1, name: 'Karan Nair', xp: 18540, challenges: 47, streak: 12, badge: 'Legendary' },
-  { rank: 2, name: 'Priya Sharma', xp: 14820, challenges: 38, streak: 8, badge: 'Architect' },
-  { rank: 3, name: 'Arjun Mehta', xp: 12350, challenges: 31, streak: 5, badge: 'Elite' },
-  { rank: 4, name: 'Sneha Patel', xp: 10900, challenges: 28, streak: 3, badge: 'Expert' },
-  { rank: 5, name: 'Dev Rao', xp: 9450, challenges: 24, streak: 7, badge: 'Expert' },
-  { rank: 6, name: 'Anika Singh', xp: 8210, challenges: 22, streak: 2, badge: 'Senior' },
-  { rank: 7, name: 'Rahul Verma', xp: 7830, challenges: 19, streak: 4, badge: 'Senior' },
-  { rank: 8, name: 'Meera Joshi', xp: 6600, challenges: 17, streak: 1, badge: 'Member' },
-  { rank: 9, name: 'Vikram Das', xp: 5940, challenges: 15, streak: 0, badge: 'Member' },
-  { rank: 10, name: 'Tanvi Kumar', xp: 5100, challenges: 13, streak: 2, badge: 'Member' },
-]
-
-const badgeStyle: Record<string, string> = {
-  Legendary: 'text-primary border-primary',
-  Architect: 'text-secondary border-secondary',
-  Elite: 'text-tertiary-fixed border-tertiary-fixed',
-  Expert: 'text-on-surface-variant border-outline-variant',
-  Senior: 'text-on-surface-variant border-outline-variant',
-  Member: 'text-on-surface-variant/60 border-outline-variant/40',
+interface LeaderEntry {
+  id: string
+  name: string
+  xp: number
+  rank: number
+  track: string
+  department?: string
+  year?: string
+  position: number
+  badge: string
+  leetcodeSolved?: number
+  leetcodeProfile?: string
 }
 
-const podiumHeight = [80, 100, 60] // rank 2, 1, 3
+const BADGE_STYLE: Record<string, { text: string; bg: string; border: string }> = {
+  Legendary: { text: 'text-primary', bg: 'bg-primary/10',    border: 'border-primary/40' },
+  Architect: { text: 'text-secondary', bg: 'bg-secondary/10', border: 'border-secondary/40' },
+  Elite:     { text: 'text-[#74facb]', bg: 'bg-[#74facb]/10', border: 'border-[#74facb]/40' },
+  Expert:    { text: 'text-blue-400',  bg: 'bg-blue-400/10',  border: 'border-blue-400/40' },
+  Senior:    { text: 'text-white/60',  bg: 'bg-white/5',      border: 'border-white/20' },
+  Member:    { text: 'text-white/40',  bg: 'bg-white/5',      border: 'border-white/10' },
+}
 
 const LeaderboardPage = () => {
-  const [season, setSeason] = useState<Season>(SEASONS[0])
+  const [view, setView] = useState<'club' | 'leetcode'>('club')
+  const [search, setSearch] = useState('')
+
+  const { data: entries = [], isLoading } = useQuery<LeaderEntry[]>({
+    queryKey: ['leaderboard'],
+    queryFn: () => api.get('/leaderboard').then(r => r.data),
+    refetchInterval: 30000,
+  })
+
+  const filteredAndSorted = useMemo(() => {
+    let list = [...entries]
+    if (view === 'leetcode') {
+      list = list.filter(e => e.leetcodeSolved && e.leetcodeSolved > 0)
+                 .sort((a, b) => (b.leetcodeSolved || 0) - (a.leetcodeSolved || 0))
+    } else {
+      list = list.sort((a, b) => b.xp - a.xp)
+    }
+
+    if (search.trim()) {
+      const s = search.toLowerCase()
+      list = list.filter(e => e.name.toLowerCase().includes(s) || (e.department?.toLowerCase().includes(s)))
+    }
+
+    return list.map((e, i) => ({ ...e, dynamicPos: i + 1 }))
+  }, [entries, view, search])
+
+  const top3 = filteredAndSorted.slice(0, 3)
 
   return (
     <PublicLayout>
       {/* Header */}
-      <section className="py-20 px-8 bg-[#0A0A0A] border-b border-white/5">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <div>
-            <div className="text-[10px] font-mono font-black tracking-[0.5em] text-primary uppercase mb-4">PERFORMANCE MATRIX</div>
-            <h1 className="text-6xl font-black italic uppercase tracking-tighter mb-4">Leaderboard</h1>
-            <div className="h-1 w-24 bg-primary" />
-          </div>
-          {/* Season Selector */}
-          <div className="flex gap-2 flex-wrap">
-            {SEASONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSeason(s)}
-                className={`px-4 py-2 text-[10px] font-mono font-black uppercase tracking-widest transition-all ${
-                  season === s ? 'bg-primary text-on-primary' : 'border border-white/10 text-on-surface-variant hover:border-primary/50 hover:text-white'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Podium */}
-      <section className="py-20 px-8 bg-[#0A0A0A]">
-        <div className="max-w-[1440px] mx-auto">
-          <div className="flex items-end justify-center gap-4 md:gap-8 mb-16">
-            {podium.map((p, i) => (
-              <div key={p.rank} className="flex flex-col items-center">
-                {/* Medal */}
-                <div className={`w-16 h-16 md:w-20 md:h-20 mb-4 bg-gradient-to-br ${p.gradient} border-2 flex items-center justify-center`} style={{ borderColor: p.accent }}>
-                  <span className="font-pixel text-xl md:text-2xl" style={{ color: p.accent }}>
-                    {p.name.split(' ').map((n) => n[0]).join('')}
-                  </span>
-                </div>
-                <div className="text-[9px] font-mono uppercase tracking-widest mb-1" style={{ color: p.accent }}>{p.badge}</div>
-                <div className="font-headline font-black text-sm mb-1">{p.name}</div>
-                <div className="text-[10px] font-mono text-on-surface-variant">{p.xp.toLocaleString()} XP</div>
-                {/* Podium Block */}
-                <div
-                  className="mt-4 w-24 md:w-32 flex items-center justify-center border-t-2"
-                  style={{ height: `${podiumHeight[i]}px`, background: `${p.accent}10`, borderTopColor: p.accent }}
-                >
-                  <span className="font-pixel text-3xl md:text-4xl" style={{ color: p.accent }}>
-                    #{p.rank}
-                  </span>
-                </div>
+      <section className="py-12 px-8 bg-[#0A0A0A] border-b border-white/5 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_-20%,_rgba(211,239,87,0.05)_0%,_transparent_50%)]" />
+        <div className="max-w-[1440px] mx-auto relative z-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <div>
+              <div className={`text-[11px] font-black tracking-[0.5em] uppercase mb-4 font-['Space_Mono'] flex items-center gap-2 transition-colors ${view === 'club' ? 'text-primary' : 'text-orange-400'}`}>
+                <span className={`w-2 h-2 rounded-full animate-pulse transition-colors ${view === 'club' ? 'bg-primary' : 'bg-orange-500'}`} />
+                PERFORMANCE_OF_DYNAMITES
               </div>
-            ))}
-          </div>
-
-          {/* Rankings Table */}
-          <div className="bg-surface-container rounded-xl overflow-hidden">
-            <div className="p-6 border-b border-outline-variant/10">
-              <h3 className="font-mono font-black uppercase tracking-tighter text-lg">Full Rankings — {season}</h3>
+              <h1 className="text-6xl md:text-7xl font-black italic uppercase tracking-tighter mb-4 font-['Orbitron']">
+                {view === 'club' ? 'Elite' : 'LeetCode'}
+              </h1>
+              <div className={`h-1.5 w-32 bg-gradient-to-r transition-all duration-500 ${view === 'club' ? 'from-primary' : 'from-orange-500'} via-secondary to-transparent`} />
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-surface-container-high">
-                  <tr>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Rank</th>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Operator</th>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">XP</th>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Challenges</th>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Streak</th>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Badge</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/10">
-                  {entries.map((e) => (
-                    <tr key={e.rank} className="hover:bg-surface-bright/20 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className={`font-pixel text-xl ${e.rank <= 3 ? 'text-primary' : 'text-on-surface-variant/60'}`}>
-                          #{e.rank}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary/10 border border-primary/20 flex items-center justify-center">
-                            <span className="font-pixel text-xs text-primary">{e.name.split(' ').map((n) => n[0]).join('')}</span>
-                          </div>
-                          <span className="font-headline font-bold text-white">{e.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-sm text-primary font-bold">{e.xp.toLocaleString()}</td>
-                      <td className="px-6 py-4 font-mono text-sm text-on-surface-variant">{e.challenges}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 font-mono text-sm text-on-surface-variant">
-                          <span className="material-symbols-outlined text-sm text-primary">local_fire_department</span>
-                          {e.streak}d
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`text-[9px] font-mono font-black px-2 py-0.5 uppercase tracking-tighter border ${badgeStyle[e.badge]}`}>
-                          {e.badge}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            {/* View Toggles */}
+            <div className="flex p-1 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-xl">
+              <button
+                onClick={() => setView('club')}
+                className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'club' ? 'bg-primary text-black shadow-[0_0_20px_rgba(211,239,87,0.3)]' : 'text-white/40 hover:text-white'}`}
+              >
+                Club XP
+              </button>
+              <button
+                onClick={() => setView('leetcode')}
+                className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'leetcode' ? 'bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.3)]' : 'text-white/40 hover:text-white'}`}
+              >
+                LeetCode
+              </button>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Global Search & Filters */}
+      <section className="sticky top-[72px] z-30 bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-white/5 py-4 px-8">
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1 group">
+            <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/20 transition-colors ${view === 'club' ? 'group-focus-within:text-primary' : 'group-focus-within:text-orange-500'}`}>search</span>
+            <input
+              type="text"
+              placeholder="Search by name or department..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:outline-none transition-all font-mono ${view === 'club' ? 'focus:border-primary/50' : 'focus:border-orange-500/50'}`}
+            />
+          </div>
+          <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-white/40 uppercase tracking-widest">
+            <span>TOTAL: {filteredAndSorted.length}</span>
+            <span className="w-px h-4 bg-white/10" />
+            <span>SORT: {view === 'club' ? 'XP DESC' : 'SOLVED DESC'}</span>
+          </div>
+        </div>
+      </section>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <div className="w-16 h-16 border-t-2 border-primary rounded-full animate-spin" />
+          <span className="font-pixel text-primary text-xs tracking-widest animate-pulse">RECONSTRUCTING_RANKINGS...</span>
+        </div>
+      ) : filteredAndSorted.length === 0 ? (
+        <section className="py-24 px-8">
+          <div className="max-w-[1440px] mx-auto lab-panel p-20 flex flex-col items-center text-center gap-6 border-dashed border-2 border-white/5">
+            <span className="material-symbols-outlined text-6xl text-white/10">radar</span>
+            <h3 className="text-2xl font-black uppercase tracking-widest text-white/40">No records found</h3>
+            <p className="text-sm text-on-surface-variant max-w-md mx-auto leading-relaxed">
+              Our sensors didn't find any operators matching your search or criteria. Keep building to make your mark.
+            </p>
+          </div>
+        </section>
+      ) : (
+        <div className="max-w-[1440px] mx-auto px-8 py-16 space-y-24">
+          
+          {/* Podium for top 3 (only when no search) */}
+          {!search && (
+            <div className="flex flex-col md:flex-row items-center justify-center gap-8 pt-10">
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={view}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-end justify-center gap-4 md:gap-12"
+                >
+                  {[top3[1], top3[0], top3[2]].filter(Boolean).map((p) => (
+                    <div key={p.id} className="flex flex-col items-center">
+                      <div className="relative mb-6">
+                        <div 
+                          className="w-20 h-20 md:w-28 md:h-28 rounded-full border-4 flex items-center justify-center relative z-10 transition-transform hover:scale-110"
+                          style={{ borderColor: view === 'club' ? '#d3ef57' : '#f97316', background: '#0D0D0D' }}
+                        >
+                          <span className="text-3xl font-black uppercase" style={{ color: view === 'club' ? '#d3ef57' : '#f97316' }}>
+                            {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </span>
+                        </div>
+                        <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#0D0D0D] border-2 rounded-full flex items-center justify-center z-20" style={{ borderColor: view === 'club' ? '#d3ef57' : '#f97316' }}>
+                          <span className="font-black text-white text-xs">#{p.dynamicPos}</span>
+                        </div>
+                      </div>
+                      <h3 className="font-black text-lg text-white mb-1">{p.name}</h3>
+                      <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest mb-4">{p.track}</p>
+                      <div 
+                        className="w-24 md:w-32 rounded-t-3xl transition-all duration-700"
+                        style={{ 
+                          height: p.dynamicPos === 1 ? '160px' : p.dynamicPos === 2 ? '120px' : '90px',
+                          background: `linear-gradient(to top, ${view === 'club' ? '#d3ef5710' : '#f9731610'}, ${view === 'club' ? '#d3ef5740' : '#f9731640'})`,
+                          borderTop: `2px solid ${view === 'club' ? '#d3ef57' : '#f97316'}`
+                        }}
+                      >
+                        <div className="pt-4 text-center">
+                          <div className="text-xl font-black text-white">
+                            {view === 'club' ? p.xp.toLocaleString() : p.leetcodeSolved}
+                          </div>
+                          <div className="text-[9px] font-mono text-white/60 uppercase">{view === 'club' ? 'XP' : 'Solved'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Table for rest */}
+          <section>
+            <div className="flex items-center gap-4 mb-8">
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Standings</span>
+              <div className="h-px flex-1 bg-white/5" />
+            </div>
+            
+            <div className="bg-[#0A0A0A] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/[0.02] border-b border-white/5">
+                      {['Rank', 'Operator', 'Track', 'Department', view === 'club' ? 'Club XP' : 'LeetCode Solved', 'Status'].map(h => (
+                        <th key={h} className="px-8 py-6 font-mono text-[10px] uppercase tracking-[0.3em] text-white/40">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredAndSorted.map((e) => {
+                      const badge = BADGE_STYLE[e.badge] ?? BADGE_STYLE.Member
+                      return (
+                        <motion.tr 
+                          layout
+                          key={e.id} 
+                          className="hover:bg-white/[0.03] transition-colors group"
+                        >
+                          <td className="px-8 py-6">
+                            <span className={`text-2xl font-black ${e.dynamicPos <= 3 ? (view === 'club' ? 'text-primary' : 'text-orange-500') : 'text-white/20'}`}>
+                              #{e.dynamicPos}
+                            </span>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs border ${e.dynamicPos <= 3 ? (view === 'club' ? 'border-primary/40 bg-primary/10 text-primary' : 'border-orange-500/40 bg-orange-500/10 text-orange-500') : 'border-white/10 text-white/40'}`}>
+                                {e.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                              </div>
+                              <div>
+                                <div className="font-bold text-white group-hover:text-primary transition-colors">{e.name}</div>
+                                {e.leetcodeProfile && view === 'leetcode' && (
+                                  <div className="text-[10px] font-mono text-white/40">@{e.leetcodeProfile}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <span className="text-[10px] font-mono text-white/60 uppercase tracking-widest">{e.track}</span>
+                          </td>
+                          <td className="px-8 py-6 text-sm text-white/40">{e.department || '—'}</td>
+                          <td className="px-8 py-6">
+                            <div className="flex flex-col">
+                              <span className={`text-xl font-black ${view === 'club' ? 'text-primary' : 'text-orange-500'}`}>
+                                {view === 'club' ? e.xp.toLocaleString() : e.leetcodeSolved}
+                              </span>
+                              <span className="text-[9px] font-mono text-white/30 uppercase">{view === 'club' ? 'XP EARNED' : 'PROBLEMS'}</span>
+                            </div>
+                          </td>
+                          <td className="px-8 py-6">
+                            {view === 'club' ? (
+                              <span className={`text-[9px] font-mono font-black px-3 py-1 uppercase border rounded-full ${badge.text} ${badge.border} ${badge.bg}`}>
+                                {e.badge}
+                              </span>
+                            ) : (
+                              <a 
+                                href={`https://leetcode.com/${e.leetcodeProfile}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 text-[10px] font-mono text-orange-400 hover:underline"
+                              >
+                                PROFILE <span className="material-symbols-outlined text-sm">open_in_new</span>
+                              </a>
+                            )}
+                          </td>
+                        </motion.tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            {filteredAndSorted.length > 50 && (
+              <div className="mt-8 text-center text-[10px] font-mono text-white/20 uppercase tracking-widest animate-pulse">
+                Showing top 50 operators. Search to find specific records.
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </PublicLayout>
   )
 }

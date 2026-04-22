@@ -2,16 +2,17 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
+import AnimatedProfileBadge from '../components/ui/AnimatedProfileBadge'
+import LeetCodeSettings from '../components/ui/LeetCodeSettings'
+
 
 interface DashboardData {
   user: {
     id: string; name: string; email: string; xp: number; rank: number
-    badge: string; challenges: number; streak: number; track: string
+    usn: string; department: string; year: string; githubUrl: string; track: string
   }
-  rankProgress: { current: string; next: string; xp: number; threshold: number; percent: number }
   enrolledEvents: Array<{ id: string; type: string; date: string; title: string; status: string; accent: string }>
-  activeChallenges: Array<{ id: string; title: string; difficulty: string; xp: number; progress: number }>
+  activeChallenges: Array<{ id: string; title: string; difficulty: string; xp: number; verified: boolean }>
   activity: Array<{ time: string; text: string; accent: string }>
 }
 
@@ -20,13 +21,12 @@ const fetchDashboard = () => api.get<DashboardData>('/dashboard').then((r) => r.
 const DashboardPage = () => {
   const { logout, user: authUser } = useAuth()
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
 
   const { data, isLoading, isError } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard })
 
   const handleLogout = () => {
     logout()
-    navigate('/login')
+    navigate('/login', { replace: true })
   }
 
   if (isLoading) {
@@ -45,36 +45,35 @@ const DashboardPage = () => {
     )
   }
 
-  const { user, rankProgress, enrolledEvents, activeChallenges, activity } = data
+  const { user, enrolledEvents, activeChallenges, activity } = data
 
   return (
     <div className="min-h-screen bg-[#0d141c] font-headline text-on-surface">
       {/* Top bar */}
       <header className="fixed top-0 w-full z-50 bg-[#0d141c]/80 backdrop-blur-xl border-b border-outline-variant/10 h-16 flex items-center justify-between px-8">
-        <Link to="/" className="text-primary font-black text-lg tracking-tighter uppercase flex items-center gap-2">
-          <span className="w-2 h-2 bg-primary inline-block" />
-          CODE DYNAMOS
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="text-primary font-black text-lg tracking-tighter uppercase flex items-center gap-2">
+            <span className="w-2 h-2 bg-primary inline-block" />
+            CODE DYNAMOS
+          </Link>
+        </div>
         <div className="flex items-center gap-6">
+          <Link to="/" className="text-white/60 hover:text-primary transition-colors flex items-center gap-1" title="Back to Home">
+            <span className="material-symbols-outlined text-lg">home</span>
+          </Link>
           <Link to="/challenges" className="text-xs font-mono uppercase tracking-widest text-on-surface-variant hover:text-white transition-colors">Challenges</Link>
           <Link to="/events" className="text-xs font-mono uppercase tracking-widest text-on-surface-variant hover:text-white transition-colors">Events</Link>
           {authUser?.role === 'admin' && (
             <Link to="/admin" className="text-xs font-mono uppercase tracking-widest text-primary hover:text-white transition-colors">Admin</Link>
           )}
-          <button
-            onClick={toggle}
-            className="w-8 h-8 flex items-center justify-center border border-white/10 text-on-surface-variant hover:text-primary hover:border-primary/50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
-          </button>
           <button onClick={handleLogout} className="text-xs font-mono uppercase tracking-widest text-on-surface-variant hover:text-error transition-colors">
             Logout
           </button>
-          <div className="w-8 h-8 bg-primary/10 border border-primary/30 flex items-center justify-center">
-            <span className="font-pixel text-xs text-primary">
-              {user.name.split(' ').map((n) => n[0]).join('')}
-            </span>
-          </div>
+          <AnimatedProfileBadge
+            name={user.name}
+            initials={user.name.split(' ').map((n) => n[0]).join('')}
+            className="cursor-pointer"
+          />
         </div>
       </header>
 
@@ -95,36 +94,33 @@ const DashboardPage = () => {
           {[
             { label: 'Total XP', value: user.xp.toLocaleString(), icon: 'bolt', accent: '#d3ef57' },
             { label: 'Global Rank', value: `#${user.rank}`, icon: 'emoji_events', accent: '#dbb8ff' },
-            { label: 'Challenges', value: user.challenges.toString(), icon: 'terminal', accent: '#74facb' },
-            { label: 'Day Streak', value: user.streak.toString(), icon: 'local_fire_department', accent: '#ffb4ab' },
-          ].map((s) => (
-            <div key={s.label} className="bg-surface-container-low p-5 border-l-4 flex flex-col gap-3" style={{ borderLeftColor: s.accent }}>
+            { label: 'Department', value: user.department || 'N/A', icon: 'school', accent: '#74facb' },
+            { label: 'Track', value: user.track, icon: 'route', accent: '#ffb4ab' },
+          ].map((s, i) => (
+            <div key={i} className="bg-surface-container-low p-5 border-l-4 flex flex-col gap-3" style={{ borderLeftColor: s.accent }}>
               <span className="material-symbols-outlined text-xl" style={{ color: s.accent }}>{s.icon}</span>
-              <div className="text-3xl font-black" style={{ color: s.accent }}>{s.value}</div>
+              <div className="text-3xl font-black truncate" style={{ color: s.accent }}>{s.value}</div>
               <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">{s.label}</div>
             </div>
           ))}
         </section>
 
-        {/* XP Progress */}
+        {/* Missing rankProgress replacement — using student track info */}
         <section className="bg-surface-container rounded-xl p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">XP Progress to Next Rank</div>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">Student Profile Validation</div>
               <div className="font-headline font-black">
-                {rankProgress.current} → <span className="text-primary">{rankProgress.next}</span>
+                {user.usn || 'UNVERIFIED IDENTIFIER'}
               </div>
             </div>
             <span className="font-mono text-sm text-on-surface-variant">
-              {rankProgress.xp.toLocaleString()} / {rankProgress.threshold.toLocaleString()} XP
+              Year {user.year || 'N/A'}
             </span>
           </div>
-          <div className="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
-            <div className="bg-primary h-full rounded-full transition-all duration-700" style={{ width: `${rankProgress.percent}%` }} />
-          </div>
-          <div className="text-[10px] font-mono text-on-surface-variant mt-2">
-            {(rankProgress.threshold - rankProgress.xp).toLocaleString()} XP to {rankProgress.next} —{' '}
-            <span className="text-primary">{rankProgress.percent}% complete</span>
+          <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mt-2">
+             <span>{user.email}</span>
+             {user.githubUrl && <a href={user.githubUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">GitHub Profile</a>}
           </div>
         </section>
 
@@ -142,7 +138,7 @@ const DashboardPage = () => {
                 </div>
               ) : (
                 activeChallenges.map((c) => (
-                  <div key={c.id} className="px-6 py-5 border-b border-outline-variant/10 last:border-none hover:bg-surface-bright/20 transition-colors group">
+                  <Link key={c.id} to={`/challenges/${c.id}`} className="px-6 py-5 border-b border-outline-variant/10 last:border-none hover:bg-surface-bright/20 transition-colors group block">
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-headline font-bold group-hover:text-primary transition-colors">{c.title}</h3>
@@ -151,13 +147,12 @@ const DashboardPage = () => {
                       <span className="font-mono text-xs text-primary font-bold">+{c.xp} XP</span>
                     </div>
                     <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mb-2">
-                      <span>Progress</span>
-                      <span>{c.progress}%</span>
+                      <span>Status</span>
+                      <span className={c.verified ? "text-primary" : "text-tertiary-fixed"}>
+                        {c.verified ? "VERIFIED" : "SUBMITTED"}
+                      </span>
                     </div>
-                    <div className="w-full bg-surface-container-high h-1">
-                      <div className="bg-primary h-full" style={{ width: `${c.progress}%` }} />
-                    </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
@@ -174,21 +169,21 @@ const DashboardPage = () => {
                 </div>
               ) : (
                 enrolledEvents.map((ev) => (
-                  <div key={ev.id} className="px-6 py-5 border-b border-outline-variant/10 last:border-none hover:bg-surface-bright/20 transition-colors">
+                  <Link key={ev.id} to={`/events/${ev.id}`} className="px-6 py-5 border-b border-outline-variant/10 last:border-none hover:bg-surface-bright/20 transition-colors group block">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-surface-container-high flex flex-col items-center justify-center border" style={{ borderColor: `${ev.accent}30` }}>
+                      <div className="w-14 h-14 bg-surface-container-high flex flex-col items-center justify-center border transition-colors group-hover:border-primary/50" style={{ borderColor: `${ev.accent}30` }}>
                         <span className="font-pixel text-[8px] uppercase" style={{ color: ev.accent }}>{ev.date.split(' ')[0]}</span>
                         <span className="font-pixel text-lg font-bold" style={{ color: ev.accent }}>{ev.date.split(' ')[1]}</span>
                       </div>
                       <div className="flex-1">
                         <div className="text-[9px] font-mono uppercase tracking-widest mb-1" style={{ color: ev.accent }}>{ev.type}</div>
-                        <h3 className="font-headline font-bold text-sm">{ev.title}</h3>
+                        <h3 className="font-headline font-bold text-sm group-hover:text-primary transition-colors">{ev.title}</h3>
                       </div>
                       <span className="text-[9px] font-mono px-2 py-0.5 border" style={{ color: ev.accent, borderColor: `${ev.accent}40` }}>
                         {ev.status}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
@@ -230,6 +225,12 @@ const DashboardPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Settings Section */}
+        <section className="mt-12">
+          <h2 className="text-3xl font-black uppercase italic tracking-tighter mb-8">Settings</h2>
+          <LeetCodeSettings />
+        </section>
       </main>
     </div>
   )

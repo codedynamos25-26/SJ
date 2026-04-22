@@ -3,9 +3,12 @@ import axios from 'axios'
 // In dev: Vite proxies /api → localhost:4000 (see vite.config.ts)
 // In production: set VITE_API_URL to your Railway backend URL
 const cleanApiUrl = import.meta.env.VITE_API_URL?.replace(/\/+$/, '')
+const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
 const baseURL = cleanApiUrl
   ? `${cleanApiUrl}/api`
-  : '/api'
+  : isLocalHost
+    ? 'http://localhost:4000/api'
+    : '/api'
 
 export const api = axios.create({
   baseURL,

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import PublicLayout from '../components/layouts/PublicLayout'
@@ -10,6 +11,10 @@ interface EventDetail {
   status: string; location: string; accent: string
   image?: string; enrolledByMe: boolean
   platform?: string; externalUrl?: string
+  benefits?: string[]
+  schedule?: { time: string; activity: string }[]
+  requirements?: string[]
+  winners?: Array<{ id: string; name: string; position: number; awardXp: number }>
 }
 
 const typeColor: Record<string, string> = {
@@ -26,24 +31,10 @@ const accentVar: Record<string, string> = {
   '#ffb4ab': 'text-error border-error',
 }
 
-// Static per-event supplemental content keyed by id
-const extras: Record<string, { highlights: string[]; requirements: string[]; schedule: { time: string; item: string }[] }> = {
-  ev1: {
-    highlights: ['Memory model deep-dive', 'Async runtimes with tokio', 'Building APIs with axum', 'Zero-copy techniques'],
-    requirements: ['Rust basic familiarity', 'Laptop with Rust toolchain', 'VS Code or any editor'],
-    schedule: [{ time: '09:00', item: 'Setup & intro' }, { time: '10:00', item: 'Memory model' }, { time: '13:00', item: 'Lunch break' }, { time: '14:00', item: 'tokio async runtime' }, { time: '16:30', item: 'axum API workshop' }, { time: '18:00', item: 'Wrap up' }],
-  },
-  ev2: {
-    highlights: ['Kubernetes deployment', 'Serverless architecture', 'Edge computing patterns', '₹5L prize pool'],
-    requirements: ['Any tech stack', 'Team of 2-4', 'Valid student ID', 'Pre-registration required'],
-    schedule: [{ time: 'Day 1 09:00', item: 'Kickoff & problem reveal' }, { time: 'Day 1 10:00', item: 'Hacking begins' }, { time: 'Day 2 10:00', item: 'Mentor office hours' }, { time: 'Day 2 16:00', item: 'Submissions close' }, { time: 'Day 2 18:00', item: 'Demo day & awards' }],
-  },
-}
-
 const defaultExtra = {
   highlights: ['Hands-on sessions', 'Industry mentors', 'Networking opportunities', 'Certificate of participation'],
   requirements: ['Laptop required', 'Pre-registration mandatory', 'Basic programming knowledge'],
-  schedule: [{ time: '09:00', item: 'Registration & setup' }, { time: '10:00', item: 'Session begins' }, { time: '13:00', item: 'Lunch break' }, { time: '14:00', item: 'Afternoon session' }, { time: '17:00', item: 'Wrap up & Q&A' }],
+  schedule: [{ time: '09:00', activity: 'Registration & setup' }, { time: '10:00', activity: 'Session begins' }, { time: '13:00', activity: 'Lunch break' }, { time: '14:00', activity: 'Afternoon session' }, { time: '17:00', activity: 'Wrap up & Q&A' }],
 }
 
 const EventDetailPage = () => {
@@ -51,6 +42,7 @@ const EventDetailPage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [lightbox, setLightbox] = useState<{ img: string; label: string; tag: string; year: string } | null>(null)
 
   const { data: event, isLoading, isError } = useQuery<EventDetail>({
     queryKey: ['event', id],
@@ -60,12 +52,22 @@ const EventDetailPage = () => {
 
   const rsvpMutation = useMutation({
     mutationFn: () => api.post(`/events/${id}/rsvp`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['event', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] })
+      queryClient.invalidateQueries({ queryKey: ['events'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
   })
 
   const cancelMutation = useMutation({
     mutationFn: () => api.delete(`/events/${id}/rsvp`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['event', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] })
+      queryClient.invalidateQueries({ queryKey: ['events'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
   })
 
   const handleAction = () => {
@@ -104,8 +106,18 @@ const EventDetailPage = () => {
   const isFull = event.slots === 0
   const isPending = rsvpMutation.isPending || cancelMutation.isPending
   const fillPct = Math.round(((event.total - event.slots) / event.total) * 100)
-  const extra = extras[event.id] ?? defaultExtra
   const accentCls = accentVar[event.accent] ?? 'text-primary border-primary'
+
+  // Dynamic Content from Admin Dashboard
+  const benefits = event.benefits?.length ? event.benefits : defaultExtra.highlights
+  const requirements = event.requirements?.length ? event.requirements : defaultExtra.requirements
+  const schedule = (event.schedule?.length ? event.schedule : defaultExtra.schedule).map(s => {
+    if (typeof s === 'string') {
+      const [time, activity] = (s as string).split('|')
+      return { time: time?.trim() || '', activity: activity?.trim() || '' }
+    }
+    return s
+  })
 
   return (
     <PublicLayout>
@@ -120,8 +132,41 @@ const EventDetailPage = () => {
 
       {/* Hero image - only for internal events */}
       {(event.image && !event.platform) && (
-        <div className="w-full h-64 md:h-80 overflow-hidden">
-          <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+        <div className="w-full relative group bg-black/40 border-b border-white/5 flex items-center justify-center overflow-hidden h-[300px] md:h-[450px]">
+          <img 
+            src={event.image} 
+            alt={event.title} 
+            className="max-w-full max-h-full object-contain" 
+          />
+          <button 
+            onClick={() => setLightbox({ img: event.image!, label: event.title, tag: event.type, year: event.date })}
+            className="absolute bottom-6 right-6 w-12 h-12 bg-black/60 backdrop-blur-md border border-primary/30 flex items-center justify-center text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:border-primary hover:scale-110 transition-all z-10"
+            title="View Full Image"
+          >
+            <span className="material-symbols-outlined">open_in_full</span>
+          </button>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-6 right-6 w-10 h-10 border border-white/20 flex items-center justify-center text-white hover:border-primary hover:text-primary transition-colors"
+            onClick={() => setLightbox(null)}
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+          <div className="max-w-6xl w-full" onClick={(e) => e.stopPropagation()}>
+            <img src={lightbox.img} alt={lightbox.label} className="w-full max-h-[85vh] object-contain" />
+            <div className="mt-4 flex items-center gap-4">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-primary">{lightbox.tag} / {lightbox.year}</span>
+              <span className="text-white font-headline font-bold uppercase text-sm">{lightbox.label}</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -173,10 +218,32 @@ const EventDetailPage = () => {
               <p className="text-base font-body text-on-surface leading-relaxed">{event.description}</p>
             </div>
 
+            {event.winners && event.winners.length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="material-symbols-outlined text-6xl text-primary">military_tech</span>
+                </div>
+                <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-primary mb-6">Hall of Fame / Event Results</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {event.winners.map((w) => (
+                    <div key={w.id} className="flex items-center gap-4 bg-black/40 p-4 border border-white/5 group hover:border-primary/40 transition-all">
+                      <div className="w-10 h-10 bg-primary text-on-primary rounded-full flex items-center justify-center font-black shadow-lg shadow-primary/20">
+                        {w.position}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-black text-white group-hover:text-primary transition-colors">{w.name}</div>
+                        <div className="text-[9px] font-mono text-on-surface-variant uppercase">Awarded +{w.awardXp} XP</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">What you'll get</h2>
               <ul className="space-y-2">
-                {extra.highlights.map((h) => (
+                {benefits.map((h) => (
                   <li key={h} className="flex items-start gap-3">
                     <span className="w-1.5 h-1.5 mt-2 shrink-0" style={{ background: event.accent }} />
                     <span className="font-body text-sm text-on-surface">{h}</span>
@@ -188,11 +255,11 @@ const EventDetailPage = () => {
             <div>
               <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">Schedule</h2>
               <div className="space-y-0 border-l-2 border-white/10 pl-6">
-                {extra.schedule.map((s, i) => (
+                {schedule.map((s, i) => (
                   <div key={i} className="relative pb-6 last:pb-0">
                     <div className="absolute -left-[27px] top-1 w-3 h-3 border-2 border-white/20 bg-[#0A0A0A]" style={{ borderColor: event.accent }} />
                     <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: event.accent }}>{s.time}</div>
-                    <div className="text-sm font-body text-on-surface">{s.item}</div>
+                    <div className="text-sm font-body text-on-surface">{s.activity}</div>
                   </div>
                 ))}
               </div>
@@ -201,7 +268,7 @@ const EventDetailPage = () => {
             <div>
               <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">Requirements</h2>
               <ul className="space-y-2">
-                {extra.requirements.map((r) => (
+                {requirements.map((r) => (
                   <li key={r} className="flex items-start gap-3">
                     <span className="material-symbols-outlined text-sm text-on-surface-variant mt-0.5">check_circle</span>
                     <span className="font-body text-sm text-on-surface-variant">{r}</span>
@@ -239,21 +306,24 @@ const EventDetailPage = () => {
               ) : (
                 <button
                   onClick={handleAction}
-                  disabled={isFull && !event.enrolledByMe || isPending}
+                  disabled={isPending || event.status === 'Closed' || (isFull && !event.enrolledByMe)}
                   className={`w-full py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all disabled:opacity-40 ${
-                    event.enrolledByMe
+                    event.status === 'Closed'
+                      ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
+                      : event.enrolledByMe
                       ? 'border-error text-error hover:bg-error hover:text-white'
                       : isFull
                       ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
                       : `border-current hover:text-on-primary ${accentCls}`
                   }`}
-                  style={!event.enrolledByMe && !isFull ? { borderColor: event.accent, color: event.accent } : undefined}
+                  style={!event.enrolledByMe && !isFull && event.status !== 'Closed' ? { borderColor: event.accent, color: event.accent } : undefined}
                 >
                   {isPending ? 'Processing...'
-                    : event.enrolledByMe ? 'Cancel RSVP'
-                    : isFull ? 'Queue Closed'
-                    : !user ? 'Login to RSVP'
-                    : 'Execute RSVP'}
+                    : event.status === 'Closed' ? 'Event Ended'
+                    : event.enrolledByMe ? 'Cancel Registration'
+                    : isFull ? 'Queue Full'
+                    : !user ? 'Login to Register!'
+                    : 'Register!'}
                 </button>
               )}
 

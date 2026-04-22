@@ -31,13 +31,21 @@ router.post('/login', async (req, res): Promise<void> => {
 
   res.json({
     token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp, rank: user.rank, challenges: user.challenges, streak: user.streak, badge: user.badge, track: user.track },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp, rank: user.rank, usn: user.usn, department: user.department, year: user.year, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track },
   })
 })
 
 // POST /api/auth/signup
 router.post('/signup', async (req, res): Promise<void> => {
-  const { email, name, password, track } = req.body as { email?: string; name?: string; password?: string; track?: string }
+  const { email, name, password, track, usn, department, year } = req.body as {
+    email?: string
+    name?: string
+    password?: string
+    track?: string
+    usn?: string
+    department?: string
+    year?: string
+  }
 
   if (!email || !name || !password || !track) {
     res.status(400).json({ error: 'All fields are required' })
@@ -63,11 +71,11 @@ router.post('/signup', async (req, res): Promise<void> => {
     name,
     role: 'member',
     passwordHash: bcrypt.hashSync(password, 10),
+    usn: usn ?? null,
+    department: department ?? null,
+    year: year ?? null,
     xp: 0,
     rank: 0,
-    challenges: 0,
-    streak: 0,
-    badge: 'Member',
     track,
   }).returning()
 
@@ -75,7 +83,7 @@ router.post('/signup', async (req, res): Promise<void> => {
 
   res.status(201).json({
     token,
-    user: { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, xp: newUser.xp, rank: newUser.rank, challenges: newUser.challenges, streak: newUser.streak, badge: newUser.badge, track: newUser.track },
+    user: { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, xp: newUser.xp, rank: newUser.rank, usn: newUser.usn, department: newUser.department, year: newUser.year, githubUrl: newUser.githubUrl, leetcodeProfile: newUser.leetcodeProfile, leetcodeSolved: newUser.leetcodeSolved, track: newUser.track },
   })
 })
 
@@ -86,7 +94,7 @@ router.get('/me', authenticate, async (req, res): Promise<void> => {
     res.status(404).json({ error: 'User not found' })
     return
   }
-  res.json({ id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp, rank: user.rank, challenges: user.challenges, streak: user.streak, badge: user.badge, track: user.track, createdAt: user.createdAt })
+  res.json({ id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp, rank: user.rank, usn: user.usn, department: user.department, year: user.year, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track, createdAt: user.createdAt })
 })
 
 export default router

@@ -9,9 +9,12 @@ export interface AuthUser {
   role: 'member' | 'admin'
   xp: number
   rank: number
-  challenges: number
-  streak: number
-  badge: string
+  usn?: string
+  department?: string
+  year?: string
+  githubUrl?: string
+  leetcodeProfile?: string
+  leetcodeSolved?: number
   track: string
 }
 
@@ -19,8 +22,8 @@ interface AuthContextValue {
   user: AuthUser | null
   token: string | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
-  signup: (data: { email: string; name: string; password: string; track: string }) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthUser>
+  signup: (data: { email: string; name: string; password: string; track: string; usn?: string; department?: string; year?: string }) => Promise<AuthUser>
   logout: () => void
   isAdmin: boolean
 }
@@ -55,6 +58,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       })
   }, [token])
 
+  // Prevent back-button access to cached protected views after logout
+  useEffect(() => {
+    const syncAuthState = () => {
+      const currentToken = localStorage.getItem('cd_token')
+      if (!currentToken) {
+        setToken(null)
+        setUser(null)
+      }
+    }
+
+    window.addEventListener('pageshow', syncAuthState)
+    window.addEventListener('popstate', syncAuthState)
+    return () => {
+      window.removeEventListener('pageshow', syncAuthState)
+      window.removeEventListener('popstate', syncAuthState)
+    }
+  }, [])
+
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true)
     try {
@@ -63,12 +84,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('cd_user', JSON.stringify(res.data.user))
       setToken(res.data.token)
       setUser(res.data.user)
+      return res.data.user
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  const signup = useCallback(async (data: { email: string; name: string; password: string; track: string }) => {
+  const signup = useCallback(async (data: { email: string; name: string; password: string; track: string; usn?: string; department?: string; year?: string }) => {
     setIsLoading(true)
     try {
       const res = await api.post<{ token: string; user: AuthUser }>('/auth/signup', data)
@@ -76,6 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('cd_user', JSON.stringify(res.data.user))
       setToken(res.data.token)
       setUser(res.data.user)
+      return res.data.user
     } finally {
       setIsLoading(false)
     }

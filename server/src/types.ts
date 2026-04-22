@@ -38,6 +38,11 @@ export interface Event {
   image?: string
   platform?: string
   externalUrl?: string
+  benefits?: string[]
+  schedule?: { time: string; activity: string }[]
+  requirements?: string[]
+  enrollmentXp: number
+  endsAt?: string
 }
 
 export interface Challenge {
@@ -50,6 +55,12 @@ export interface Challenge {
   participants: number
   tags: string[]
   description: string
+  requirements?: string[]
+  timeline?: string[]
+  prizes?: string[]
+  status: string
+  enrollmentXp: number
+  endsAt?: string
 }
 
 export interface TeamMember {
@@ -59,8 +70,9 @@ export interface TeamMember {
   dept: string
   skills: string[]
   accent: string
-  gradient: string
-  tier: 'leadership' | 'core'
+  gradient?: string
+  tier: 'Faculty' | 'Core' | 'Technical' | 'Marketing' | 'Creative' | 'Operator'
+  image?: string
 }
 
 export interface Project {
@@ -72,6 +84,7 @@ export interface Project {
   stars: number
   forks: number
   img: string
+  githubUrl?: string
 }
 
 export interface LeaderboardEntry {
