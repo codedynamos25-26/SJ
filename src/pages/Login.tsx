@@ -1,7 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { api } from '../lib/api'
 import logoImg from '../assets/logo.jpeg'
 
 const Login = () => {

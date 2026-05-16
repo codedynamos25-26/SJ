@@ -9,7 +9,7 @@ interface EventDetail {
   id: string; type: string; date: string; title: string
   description: string; slots: number; total: number
   status: string; location: string; accent: string
-  image?: string;  enrollmentXp: number
+  image?: string;  enrollmentXp: number; enrolledByMe: boolean
   platform: string | null
   externalUrl: string | null
   benefits?: string[]

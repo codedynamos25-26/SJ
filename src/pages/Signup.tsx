@@ -1,8 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
-import { api } from '../lib/api'
 import logoImg from '../assets/logo.jpeg'
 
 const semesters = [
