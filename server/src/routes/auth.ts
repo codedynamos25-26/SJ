@@ -1,23 +1,12 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  connectionTimeout: 10000,
-  logger: true,
-  debug: true,
-});
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 const router = Router()
 
@@ -138,17 +127,22 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
 
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
 
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    if (process.env.RESEND_API_KEY) {
       try {
-        await transporter.sendMail({
-          from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
+        const { error: resendError } = await resend.emails.send({
+          from: 'Code Dynamos <onboarding@resend.dev>',
           to: user.email,
           subject: 'Password Reset Request',
           html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
         })
+        if (resendError) {
+          console.error('Resend error:', resendError)
+          res.status(500).json({ error: 'Failed to send email. Please contact support.' })
+          return
+        }
       } catch (err) {
-        console.error('Failed to send email:', err)
-        res.status(500).json({ error: 'Failed to send email due to SMTP configuration error.' })
+        console.error('Failed to send email via Resend:', err)
+        res.status(500).json({ error: 'Failed to send email. Please contact support.' })
         return
       }
     } else {
