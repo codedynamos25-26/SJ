@@ -6,7 +6,12 @@ import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy-initialize Resend so the server doesn't crash if the key is missing at startup
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error('RESEND_API_KEY is not set in environment variables')
+  return new Resend(key)
+}
 
 const router = Router()
 
@@ -129,7 +134,7 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
 
     if (process.env.RESEND_API_KEY) {
       try {
-        const { error: resendError } = await resend.emails.send({
+        const { error: resendError } = await getResend().emails.send({
           from: 'Code Dynamos <onboarding@resend.dev>',
           to: user.email,
           subject: 'Password Reset Request',
