@@ -8,7 +8,7 @@ const baseURL = cleanApiUrl
   ? cleanApiUrl.endsWith('/api') ? cleanApiUrl : `${cleanApiUrl}/api`
   : isLocalHost
     ? 'http://localhost:4000/api'
-    : '/api'
+    : 'https://sj-3.onrender.com/api'
 
 export const api = axios.create({
   baseURL,

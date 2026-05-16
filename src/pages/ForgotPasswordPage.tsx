@@ -53,8 +53,10 @@ const ForgotPasswordPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-[10px] font-mono uppercase tracking-widest text-white/40 block mb-1">Email Address</label>
+              <label htmlFor="email" className="text-[10px] font-mono uppercase tracking-widest text-white/40 block mb-1">Email Address</label>
               <input
+                id="email"
+                name="email"
                 type="email"
                 required
                 className="w-full bg-white/5 border border-white/10 p-3 text-sm font-mono focus:border-primary focus:outline-none transition-colors rounded"
