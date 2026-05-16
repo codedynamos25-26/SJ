@@ -5,7 +5,7 @@ import axios from 'axios'
 const cleanApiUrl = import.meta.env.VITE_API_URL?.replace(/\/+$/, '')
 const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
 const baseURL = cleanApiUrl
-  ? `${cleanApiUrl}/api`
+  ? cleanApiUrl.endsWith('/api') ? cleanApiUrl : `${cleanApiUrl}/api`
   : isLocalHost
     ? 'http://localhost:4000/api'
     : '/api'
