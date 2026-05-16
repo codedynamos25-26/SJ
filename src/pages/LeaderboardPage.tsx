@@ -315,7 +315,7 @@ const LeaderboardPage = () => {
                 {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
               <h2 className="text-2xl font-black text-white text-center">{selectedStudent.name}</h2>
-              <p className="text-xs font-mono text-white/40 uppercase mt-1">{selectedStudent.department || 'No Dept'} · {selectedStudent.year || 'No Year'}</p>
+              <p className="text-xs font-mono text-white/40 uppercase mt-1">{selectedStudent.department || 'No Dept'} · {selectedStudent.semester ? `SEM_${selectedStudent.semester}` : selectedStudent.year || 'No Year'}</p>
             </div>
             
             <div className="space-y-4">

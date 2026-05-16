@@ -321,3 +321,23 @@ input:-webkit-autofill:active {
     caret-color: white !important;
     transition: background-color 5000s ease-in-out 0s;
 }
+
+/* ── Global UX Refinements ──────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6, button, .no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+input, textarea, [contenteditable="true"] {
+  cursor: text;
+}
+
+a, button, [role="button"] {
+  cursor: pointer;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
