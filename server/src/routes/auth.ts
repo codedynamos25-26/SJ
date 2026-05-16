@@ -7,15 +7,18 @@ import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: process.env.SMTP_SECURE === 'true' || Number(process.env.SMTP_PORT) === 465,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: { rejectUnauthorized: false },
-  family: 4 // Force IPv4 to prevent ENETUNREACH on Render
+  connectionTimeout: 5000, // Timeout after 5 seconds instead of 2 minutes
+  greetingTimeout: 5000,
+  socketTimeout: 5000,
+  family: 4 // Force IPv4
 } as any)
 
 const router = Router()
