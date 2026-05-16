@@ -10,12 +10,16 @@ interface LeaderEntry {
   xp: number
   rank: number
   track: string
+  usn?: string
   department?: string
   year?: string
+  semester?: string
   position: number
   badge: string
   leetcodeSolved?: number
+  leetcodeRating?: number
   leetcodeProfile?: string
+  githubUrl?: string
 }
 
 const BADGE_STYLE: Record<string, { text: string; bg: string; border: string }> = {
@@ -30,6 +34,7 @@ const BADGE_STYLE: Record<string, { text: string; bg: string; border: string }> 
 const LeaderboardPage = () => {
   const [view, setView] = useState<'club' | 'leetcode'>('club')
   const [search, setSearch] = useState('')
+  const [selectedStudent, setSelectedStudent] = useState<LeaderEntry | null>(null)
 
   const { data: entries = [], isLoading } = useQuery<LeaderEntry[]>({
     queryKey: ['leaderboard'],
@@ -41,7 +46,11 @@ const LeaderboardPage = () => {
     let list = [...entries]
     if (view === 'leetcode') {
       list = list.filter(e => e.leetcodeSolved && e.leetcodeSolved > 0)
-                 .sort((a, b) => (b.leetcodeSolved || 0) - (a.leetcodeSolved || 0))
+                 .sort((a, b) => {
+                   const aScore = (a.leetcodeRating || 0) * 0.6 + (a.leetcodeSolved || 0) * 0.4
+                   const bScore = (b.leetcodeRating || 0) * 0.6 + (b.leetcodeSolved || 0) * 0.4
+                   return bScore - aScore
+                 })
     } else {
       list = list.sort((a, b) => b.xp - a.xp)
     }
@@ -53,6 +62,15 @@ const LeaderboardPage = () => {
 
     return list.map((e, i) => ({ ...e, dynamicPos: i + 1 }))
   }, [entries, view, search])
+
+  const departmentCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    filteredAndSorted.forEach(e => {
+      const dept = e.department || 'Unknown'
+      counts[dept] = (counts[dept] || 0) + 1
+    })
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])
+  }, [filteredAndSorted])
 
   const top3 = filteredAndSorted.slice(0, 3)
 
@@ -95,21 +113,30 @@ const LeaderboardPage = () => {
 
       {/* Global Search & Filters */}
       <section className="sticky top-[72px] z-30 bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-white/5 py-4 px-8">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1 group">
-            <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/20 transition-colors ${view === 'club' ? 'group-focus-within:text-primary' : 'group-focus-within:text-orange-500'}`}>search</span>
-            <input
-              type="text"
-              placeholder="Search by name or department..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:outline-none transition-all font-mono ${view === 'club' ? 'focus:border-primary/50' : 'focus:border-orange-500/50'}`}
-            />
+        <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1 group">
+              <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-white/20 transition-colors ${view === 'club' ? 'group-focus-within:text-primary' : 'group-focus-within:text-orange-500'}`}>search</span>
+              <input
+                type="text"
+                placeholder="Search by name or department..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:outline-none transition-all font-mono ${view === 'club' ? 'focus:border-primary/50' : 'focus:border-orange-500/50'}`}
+              />
+            </div>
+            <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-white/40 uppercase tracking-widest">
+              <span>TOTAL: {filteredAndSorted.length}</span>
+              <span className="w-px h-4 bg-white/10" />
+              <span>SORT: {view === 'club' ? 'XP DESC' : 'SCORE DESC'}</span>
+            </div>
           </div>
-          <div className="hidden md:flex items-center gap-4 text-[10px] font-mono text-white/40 uppercase tracking-widest">
-            <span>TOTAL: {filteredAndSorted.length}</span>
-            <span className="w-px h-4 bg-white/10" />
-            <span>SORT: {view === 'club' ? 'XP DESC' : 'SOLVED DESC'}</span>
+          <div className="flex flex-wrap gap-2">
+            {departmentCounts.map(([dept, count]) => (
+              <span key={dept} className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-mono text-white/60">
+                {dept} <span className="text-white font-bold ml-1">{count}</span>
+              </span>
+            ))}
           </div>
         </div>
       </section>
@@ -158,7 +185,7 @@ const LeaderboardPage = () => {
                         </div>
                       </div>
                       <h3 className="font-black text-lg text-white mb-1">{p.name}</h3>
-                      <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest mb-4">{p.track}</p>
+                      <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest mb-4">{p.year || '—'}</p>
                       <div 
                         className="w-24 md:w-32 rounded-t-3xl transition-all duration-700"
                         style={{ 
@@ -171,7 +198,7 @@ const LeaderboardPage = () => {
                           <div className="text-xl font-black text-white">
                             {view === 'club' ? p.xp.toLocaleString() : p.leetcodeSolved}
                           </div>
-                          <div className="text-[9px] font-mono text-white/60 uppercase">{view === 'club' ? 'XP' : 'Solved'}</div>
+                          <div className="text-[9px] font-mono text-white/60 uppercase">{view === 'club' ? 'XP' : `Rating: ${p.leetcodeRating || 0}`}</div>
                         </div>
                       </div>
                     </div>
@@ -193,7 +220,7 @@ const LeaderboardPage = () => {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-white/[0.02] border-b border-white/5">
-                      {['Rank', 'Operator', 'Track', 'Department', view === 'club' ? 'Club XP' : 'LeetCode Solved', 'Status'].map(h => (
+                      {['Rank', 'Operator', 'Semester', 'Department', view === 'club' ? 'Club XP' : 'LeetCode Solved', 'Status'].map(h => (
                         <th key={h} className="px-8 py-6 font-mono text-[10px] uppercase tracking-[0.3em] text-white/40">{h}</th>
                       ))}
                     </tr>
@@ -205,7 +232,8 @@ const LeaderboardPage = () => {
                         <motion.tr 
                           layout
                           key={e.id} 
-                          className="hover:bg-white/[0.03] transition-colors group"
+                          className="hover:bg-white/[0.03] transition-colors group cursor-pointer"
+                          onClick={() => setSelectedStudent(e)}
                         >
                           <td className="px-8 py-6">
                             <span className={`text-2xl font-black ${e.dynamicPos <= 3 ? (view === 'club' ? 'text-primary' : 'text-orange-500') : 'text-white/20'}`}>
@@ -226,15 +254,15 @@ const LeaderboardPage = () => {
                             </div>
                           </td>
                           <td className="px-8 py-6">
-                            <span className="text-[10px] font-mono text-white/60 uppercase tracking-widest">{e.track}</span>
+                            <span className="text-[10px] font-mono text-white/60 uppercase tracking-widest">{e.semester ? `SEM_${e.semester}` : e.year || '—'}</span>
                           </td>
                           <td className="px-8 py-6 text-sm text-white/40">{e.department || '—'}</td>
                           <td className="px-8 py-6">
                             <div className="flex flex-col">
                               <span className={`text-xl font-black ${view === 'club' ? 'text-primary' : 'text-orange-500'}`}>
-                                {view === 'club' ? e.xp.toLocaleString() : e.leetcodeSolved}
+                                {view === 'club' ? e.xp.toLocaleString() : `${e.leetcodeSolved} (${e.leetcodeRating || 0})`}
                               </span>
-                              <span className="text-[9px] font-mono text-white/30 uppercase">{view === 'club' ? 'XP EARNED' : 'PROBLEMS'}</span>
+                              <span className="text-[9px] font-mono text-white/30 uppercase">{view === 'club' ? 'XP EARNED' : 'SOLVED (RATING)'}</span>
                             </div>
                           </td>
                           <td className="px-8 py-6">
@@ -267,6 +295,52 @@ const LeaderboardPage = () => {
               </div>
             )}
           </section>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {selectedStudent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedStudent(null)}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#0A0A0A] border border-white/10 rounded-3xl p-8 max-w-sm w-full relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button onClick={() => setSelectedStudent(null)} className="absolute top-4 right-4 text-white/40 hover:text-white">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            <div className="flex flex-col items-center mb-6">
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center font-bold text-3xl border mb-4 ${view === 'club' ? 'border-primary/40 bg-primary/10 text-primary' : 'border-orange-500/40 bg-orange-500/10 text-orange-500'}`}>
+                {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </div>
+              <h2 className="text-2xl font-black text-white text-center">{selectedStudent.name}</h2>
+              <p className="text-xs font-mono text-white/40 uppercase mt-1">{selectedStudent.department || 'No Dept'} · {selectedStudent.year || 'No Year'}</p>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <span className="text-xs font-mono text-white/40 uppercase">USN</span>
+                <span className="text-sm font-bold text-white">{selectedStudent.usn || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <span className="text-xs font-mono text-white/40 uppercase">Club XP</span>
+                <span className="text-sm font-bold text-primary">{selectedStudent.xp.toLocaleString()}</span>
+              </div>
+              {selectedStudent.githubUrl && (
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-xs font-mono text-white/40 uppercase">GitHub</span>
+                  <a href={selectedStudent.githubUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-400 hover:underline">View Profile</a>
+                </div>
+              )}
+              {selectedStudent.leetcodeProfile && (
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-xs font-mono text-white/40 uppercase">LeetCode</span>
+                  <a href={`https://leetcode.com/${selectedStudent.leetcodeProfile}`} target="_blank" rel="noreferrer" className="text-sm text-orange-400 hover:underline">View Profile</a>
+                </div>
+              )}
+            </div>
+          </motion.div>
         </div>
       )}
     </PublicLayout>

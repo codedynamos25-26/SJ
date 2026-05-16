@@ -12,11 +12,15 @@ export const users = pgTable('users', {
   usn:              text('usn'),
   department:       text('department'),
   year:             text('year'),
+  semester:         text('semester'),
   githubUrl:        text('github_url'),
   // Map to existing production columns to avoid destructive migration
-  leetcodeProfile:  text('leetcode_url').unique(),
+  leetcodeProfile:  text('leetcode_url'),
   leetcodeSolved:   integer('leetcode_solved').notNull().default(0),
+  leetcodeRating:   integer('leetcode_rating').notNull().default(0),
   track:            text('track').notNull().default('Fullstack'),
+  resetToken:       text('reset_token'),
+  resetTokenExpiry: timestamp('reset_token_expiry'),
   createdAt:        timestamp('created_at').defaultNow(),
 })
 
@@ -32,7 +36,8 @@ export const teamMembers = pgTable('team_members', {
   name: text('name').notNull(),
   role: text('role').notNull(),
   dept: text('department').notNull(),
-  skills: text('skills').array().notNull().default([]),
+  instagramUrl: text('instagram_url'),
+  linkedinUrl: text('linkedin_url'),
   tier: text('category').notNull().default('Core'),
   image: text('image'),
 })
@@ -73,6 +78,7 @@ export const challenges = pgTable('challenges', {
   prizes:      text('prizes').array().notNull().default([]),
   status:      text('status').notNull().default('Open'), // Open | Closed
   enrollmentXp:integer('enrollment_xp').notNull().default(0),
+  externalUrl: text('external_url'),
   endsAt:      timestamp('ends_at'),
 })
 

@@ -4,7 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../lib/api'
 import PublicLayout from '../components/layouts/PublicLayout'
 
-interface TeamMember { id: string; name: string; role: string; dept: string; skills: string[]; tier: string; image?: string }
+interface TeamMember { id: string; name: string; role: string; dept: string; tier: string; image?: string; instagramUrl?: string; linkedinUrl?: string }
+
+const ensureAbsoluteUrl = (url?: string) => {
+  if (!url) return undefined
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `https://${url}`
+}
 
 const CATEGORY_CONFIG: Record<string, { label: string; accent: string; glow: string; border: string; badge: string; icon: string }> = {
   'Faculty': {
@@ -430,15 +436,20 @@ const TeamPage = () => {
                   <p className="text-white font-body">{selectedMember.dept}</p>
                 </div>
 
-                {selectedMember.skills.length > 0 && (
+                {(selectedMember.instagramUrl || selectedMember.linkedinUrl) && (
                   <div>
-                    <h4 className="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em] mb-2">Capabilities</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedMember.skills.map(s => (
-                        <span key={s} className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-mono text-white/60">
-                          {s}
-                        </span>
-                      ))}
+                    <h4 className="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em] mb-2">Connect</h4>
+                    <div className="flex gap-4">
+                      {selectedMember.instagramUrl && (
+                        <a href={ensureAbsoluteUrl(selectedMember.instagramUrl)} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-[#E1306C] hover:border-[#E1306C] transition-colors" title="Instagram">
+                          <span className="material-symbols-outlined text-white">photo_camera</span>
+                        </a>
+                      )}
+                      {selectedMember.linkedinUrl && (
+                        <a href={ensureAbsoluteUrl(selectedMember.linkedinUrl)} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-[#0077B5] hover:border-[#0077B5] transition-colors" title="LinkedIn">
+                          <span className="material-symbols-outlined text-white">work</span>
+                        </a>
+                      )}
                     </div>
                   </div>
                 )}

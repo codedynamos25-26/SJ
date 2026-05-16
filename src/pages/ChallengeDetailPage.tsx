@@ -12,8 +12,16 @@ interface ChallengeDetail {
   timeline?: string[]
   prizes?: string[]
   status: string
+  externalUrl?: string
   winners?: Array<{ id: string; name: string; position: number; awardXp: number }>
 }
+
+const ensureAbsoluteUrl = (url?: string | null) => {
+  if (!url) return undefined
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `https://${url}`
+}
+
 
 const diffStyle: Record<string, { text: string; border: string; bg: string; icon: string }> = {
   Legendary: { text: 'text-primary', border: 'border-primary', bg: 'bg-primary', icon: 'military_tech' },
@@ -261,6 +269,17 @@ const ChallengeDetailPage = () => {
                   : !user ? 'Login to Join'
                   : 'Initialize Sprint'}
               </button>
+
+              {challenge.enrolledByMe && challenge.externalUrl && (
+                <a
+                  href={ensureAbsoluteUrl(challenge.externalUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${style.text} ${style.border} hover:${style.bg} hover:text-on-primary`}
+                >
+                  GO TO EXTERNAL CONTEST
+                </a>
+              )}
 
               {challenge.enrolledByMe && (
                 <p className="text-[10px] font-mono text-on-surface-variant text-center mt-3">

@@ -7,11 +7,11 @@ import { useAuth } from '../../context/AuthContext'
 type Tab = 'members' | 'events' | 'challenges' | 'gallery' | 'projects' | 'announcements' | 'team'
 
 interface Member { id: string; email: string; name: string; role: string; xp: number; track: string; usn?: string; department?: string; year?: string; githubUrl?: string; createdAt: string }
-interface Event { id: string; type: string; date: string; title: string; description: string; slots: number; total: number; status: string; location: string; accent: string; image?: string; benefits?: string[]; schedule?: (string | { time: string; activity: string })[]; requirements?: string[]; enrollmentXp?: number; endsAt?: string | null; closedByTime?: boolean }
-interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string; status: string; enrollmentXp?: number; endsAt?: string | null; closedByTime?: boolean; requirements?: string[]; timeline?: string[]; prizes?: string[] }
+interface Event { id: string; type: string; date: string; title: string; description: string; slots: number; total: number; status: string; location: string; accent: string; image?: string; benefits?: string[]; schedule?: (string | { time: string; activity: string })[]; requirements?: string[]; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean }
+interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string; status: string; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean; requirements?: string[]; timeline?: string[]; prizes?: string[] }
 interface GalleryPhoto { id: string; tag: string; year: string; label: string; span: string; img: string }
 interface Project { id: string; title: string; description: string; status: string; tech: string[]; stars: number; forks: number; img: string; githubUrl?: string }
-interface TeamMember { id: string; name: string; role: string; dept: string; skills: string[]; tier: string; image?: string }
+interface TeamMember { id: string; name: string; role: string; dept: string; tier: string; image?: string; instagramUrl?: string; linkedinUrl?: string }
 
 const DIFF_COLORS: Record<string, string> = { Legendary: 'text-primary', Hard: 'text-error', Medium: 'text-secondary', Easy: 'text-tertiary-fixed' }
 
@@ -61,7 +61,7 @@ const toScheduleTextareaValue = (value: unknown): string => {
     .join('\n')
 }
 
-const blankEvent = (): Partial<Event> => ({ type: 'Workshop', date: '', title: '', description: '', slots: 30, total: 30, status: 'Open', location: '', accent: '#d3ef57', image: '', benefits: [], schedule: [], requirements: [] })
+const blankEvent = (): Partial<Event> => ({ type: 'Workshop', date: '', title: '', description: '', slots: 30, total: 30, status: 'Open', location: '', accent: '#d3ef57', image: '', benefits: [], schedule: [], requirements: [], enrollmentXp: 0, externalUrl: '' })
 const blankChallenge = (): Partial<Challenge> => ({
   title: '',
   difficulty: 'Medium',
@@ -78,10 +78,12 @@ const blankChallenge = (): Partial<Challenge> => ({
   ],
   prizes: ['1st|₹10,000 + XP Boost', '2nd|₹5,000', '3rd|₹2,500'],
   status: 'Open',
+  enrollmentXp: 0,
+  externalUrl: '',
 })
 const blankPhoto = (): Partial<GalleryPhoto> => ({ tag: 'Workshops', year: '2026', label: '', span: '', img: '' })
 const blankProject = (): Partial<Project> => ({ title: '', description: '', status: 'Beta', tech: [], stars: 0, forks: 0, img: '', githubUrl: '' })
-const blankTeamMember = (): Partial<TeamMember> => ({ name: '', role: '', dept: '', skills: [], tier: 'Operator', image: '' })
+const blankTeamMember = (): Partial<TeamMember> => ({ name: '', role: '', dept: '', tier: 'Operator', image: '', instagramUrl: '', linkedinUrl: '' })
 
 const AdminDashboard = () => {
   const [tab, setTab] = useState<Tab>('members')
@@ -95,7 +97,7 @@ const AdminDashboard = () => {
   const [photoModal, setPhotoModal] = useState<{ open: boolean; data: Partial<GalleryPhoto> }>({ open: false, data: blankPhoto() })
   const [projectModal, setProjectModal] = useState<{ open: boolean; data: Partial<Project>; editing: boolean }>({ open: false, data: blankProject(), editing: false })
   const [teamModal, setTeamModal] = useState<{ open: boolean; data: Partial<TeamMember>; editing: boolean }>({ open: false, data: blankTeamMember(), editing: false })
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'event' | 'challenge' | 'photo' | 'project' | 'team'; id: string } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'member' | 'event' | 'challenge' | 'photo' | 'project' | 'team'; id: string } | null>(null)
   const [participantsModal, setParticipantsModal] = useState<{ open: boolean; type: 'event' | 'challenge'; id: string; title: string } | null>(null)
 
   const handleLogout = () => { logout(); navigate('/login') }
@@ -117,6 +119,11 @@ const AdminDashboard = () => {
   const xpMutation = useMutation({
     mutationFn: ({ id, xp }: { id: string; xp: number }) => api.patch(`/admin/members/${id}/xp`, { xp }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-members'] }),
+  })
+  // Member delete mutation
+  const deleteMemberMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/members/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-members'] }); setDeleteConfirm(null) },
   })
 
   // Event mutations
@@ -335,6 +342,13 @@ const AdminDashboard = () => {
                               className="text-[9px] font-mono px-2 py-1 border border-outline-variant/30 text-on-surface-variant hover:border-primary hover:text-primary transition-colors uppercase"
                             >
                               {m.role === 'admin' ? 'Demote' : 'Promote'}
+                            </button>
+                            <button 
+                              onClick={() => setDeleteConfirm({ type: 'member', id: m.id })}
+                              className="p-1 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors ml-2"
+                              title="Delete Member"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
                             </button>
                           </div>
                         </td>
@@ -618,13 +632,14 @@ const AdminDashboard = () => {
               </button>
               <button 
                 onClick={() => {
-                  if (deleteConfirm.type === 'event') deleteEventMutation.mutate(deleteConfirm.id)
+                  if (deleteConfirm.type === 'member') deleteMemberMutation.mutate(deleteConfirm.id)
+                  else if (deleteConfirm.type === 'event') deleteEventMutation.mutate(deleteConfirm.id)
                   else if (deleteConfirm.type === 'challenge') deleteChallengeMutation.mutate(deleteConfirm.id)
                   else if (deleteConfirm.type === 'photo') deletePhotoMutation.mutate(deleteConfirm.id)
                   else if (deleteConfirm.type === 'team') deleteTeamMutation.mutate(deleteConfirm.id)
                   else deleteProjectMutation.mutate(deleteConfirm.id)
                 }}
-                disabled={deleteEventMutation.isPending || deleteChallengeMutation.isPending || deletePhotoMutation.isPending || deleteProjectMutation.isPending || deleteTeamMutation.isPending}
+                disabled={deleteMemberMutation.isPending || deleteEventMutation.isPending || deleteChallengeMutation.isPending || deletePhotoMutation.isPending || deleteProjectMutation.isPending || deleteTeamMutation.isPending}
                 className="px-4 py-2 text-xs font-mono uppercase bg-error text-white hover:brightness-110 disabled:opacity-50 font-black transition-colors"
               >
                 Delete
@@ -656,6 +671,7 @@ const AdminDashboard = () => {
                 { field: 'total', label: 'Total Capacity', type: 'number' },
                 { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Full', 'Closing Soon', 'Closed'] },
                 { field: 'enrollmentXp', label: 'Registration Bonus (XP)', type: 'number' },
+                { field: 'externalUrl', label: 'External Contest/Meeting Link (e.g. HackerRank)', type: 'text' },
                 { field: 'benefits', label: "Benefits / What you'll get (comma separated)", type: 'tags' },
                 { field: 'requirements', label: 'Requirements (comma separated)', type: 'tags' },
                 { field: 'schedule', label: 'Schedule (Line format: 10:00 AM | Hacking Begins)', type: 'schedule' },
@@ -781,6 +797,7 @@ const AdminDashboard = () => {
                     accent: eventModal.data.accent,
                     image: eventModal.data.image,
                     enrollmentXp: eventModal.data.enrollmentXp,
+                    externalUrl: eventModal.data.externalUrl,
                     endsAt: eventModal.data.endsAt,
                     benefits: toCommaList(eventModal.data.benefits),
                     requirements: toCommaList(eventModal.data.requirements),
@@ -817,6 +834,7 @@ const AdminDashboard = () => {
                 { field: 'enrollmentXp', label: 'Registration Bonus (XP)', type: 'number' },
                 { field: 'pool', label: 'Prize Pool (₹)', type: 'number' },
                 { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Closed'] },
+                { field: 'externalUrl', label: 'External Contest Link (e.g. HackerRank)', type: 'text' },
                 { field: 'endsAt', label: 'Closing Date & Time (Override Status)', type: 'datetime-local' },
                 { field: 'tags', label: 'Tags (comma separated)', type: 'tags' },
                 { field: 'requirements', label: 'Requirements (comma separated)', type: 'tags' },
@@ -913,6 +931,7 @@ const AdminDashboard = () => {
                     description: challengeModal.data.description,
                     status: challengeModal.data.status,
                     enrollmentXp: challengeModal.data.enrollmentXp,
+                    externalUrl: challengeModal.data.externalUrl,
                     endsAt: challengeModal.data.endsAt,
                     tags: toCommaList(challengeModal.data.tags),
                     requirements: toCommaList(challengeModal.data.requirements),
@@ -1138,7 +1157,8 @@ const AdminDashboard = () => {
                 { field: 'role', label: 'Role Title (e.g. Student Coordinator)', type: 'text' },
                 { field: 'dept', label: 'Department (e.g. B.Tech CSE)', type: 'text' },
                 { field: 'tier', label: 'Category / Tier', type: 'select', options: ['Faculty', 'Student Coordinators', 'Core', 'Technical', 'Marketing', 'Creative', 'Operator'] },
-                { field: 'skills', label: 'Skills (comma separated)', type: 'text' },
+                { field: 'instagramUrl', label: 'Instagram URL', type: 'text' },
+                { field: 'linkedinUrl', label: 'LinkedIn URL', type: 'text' },
               ] as Array<{ field: keyof TeamMember; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
@@ -1153,12 +1173,12 @@ const AdminDashboard = () => {
                   ) : (
                     <input 
                       type="text"
-                      value={field === 'skills' ? (teamModal.data[field] as string[])?.join(', ') : (teamModal.data[field] as string) ?? ''}
+                      value={(teamModal.data[field] as string) ?? ''}
                       onChange={(e) => setTeamModal(s => ({ 
                         ...s, 
                         data: { 
                           ...s.data, 
-                          [field]: field === 'skills' ? e.target.value.split(',').map(s => s.trim()) : e.target.value 
+                          [field]: e.target.value 
                         } 
                       }))}
                       className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
@@ -1206,7 +1226,7 @@ const AdminDashboard = () => {
               </button>
               <button 
                 onClick={() => {
-                  const sanitized = { ...teamModal.data, skills: teamModal.data.skills?.filter(Boolean) }
+                  const sanitized = { ...teamModal.data }
                   teamModal.editing ? updateTeamMutation.mutate(sanitized) : createTeamMutation.mutate(sanitized)
                 }}
                 disabled={createTeamMutation.isPending || updateTeamMutation.isPending}
@@ -1250,7 +1270,7 @@ function TeamTab({ team, onEdit, onDelete, onNew }: { team: TeamMember[], onEdit
           <table className="w-full text-left order-collapse">
             <thead className="bg-surface-container-high">
               <tr>
-                {['Name', 'Role', 'Department', 'Category', 'Skills', 'Actions'].map(h => (
+                {['Name', 'Role', 'Department', 'Category', 'Socials', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-4 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">{h}</th>
                 ))}
               </tr>
@@ -1265,8 +1285,18 @@ function TeamTab({ team, onEdit, onDelete, onNew }: { team: TeamMember[], onEdit
                     <span className="text-[9px] font-mono font-black px-2 py-0.5 border border-primary/30 text-primary uppercase">{m.tier}</span>
                   </td>
                   <td className="px-4 py-4 max-w-xs">
-                    <div className="flex flex-wrap gap-1">
-                      {m.skills.map(s => <span key={s} className="text-[8px] font-mono bg-white/5 px-1.5 py-0.5 text-on-surface-variant border border-white/5">{s}</span>)}
+                    <div className="flex flex-wrap gap-2">
+                      {m.instagramUrl && (
+                        <a href={m.instagramUrl} target="_blank" rel="noreferrer" className="text-on-surface-variant hover:text-primary transition-colors" title="Instagram">
+                          <span className="material-symbols-outlined text-sm">photo_camera</span>
+                        </a>
+                      )}
+                      {m.linkedinUrl && (
+                        <a href={m.linkedinUrl} target="_blank" rel="noreferrer" className="text-on-surface-variant hover:text-[#0077b5] transition-colors" title="LinkedIn">
+                          <span className="material-symbols-outlined text-sm">work</span>
+                        </a>
+                      )}
+                      {!m.instagramUrl && !m.linkedinUrl && <span className="text-[10px] text-on-surface-variant font-mono">None</span>}
                     </div>
                   </td>
                   <td className="px-4 py-4">

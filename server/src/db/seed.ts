@@ -20,7 +20,6 @@ async function seed() {
       name: member.name,
       role: member.role,
       dept: member.dept,
-      skills: member.skills,
       tier: member.tier,
       image: member.image || null
     }).onConflictDoUpdate({
@@ -29,7 +28,6 @@ async function seed() {
         name: member.name,
         role: member.role,
         dept: member.dept,
-        skills: member.skills,
         tier: member.tier,
         image: member.image || null
       }

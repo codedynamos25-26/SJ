@@ -231,6 +231,12 @@ router.patch('/members/:id/xp', async (req, res): Promise<void> => {
   res.json({ id: updated.id, xp: updated.xp })
 })
 
+router.delete('/members/:id', async (req, res): Promise<void> => {
+  const [deleted] = await db.delete(users).where(eq(users.id, req.params.id)).returning()
+  if (!deleted) { res.status(404).json({ error: 'User not found' }); return }
+  res.json({ message: 'Deleted' })
+})
+
 // ── Announcements CRUD ───────────────────────────────────────────────────────
 router.get('/announcements', async (_req, res) => {
   res.json(await db.select().from(announcements).orderBy(announcements.createdAt))
@@ -262,10 +268,10 @@ router.get('/team', async (_req, res) => {
 })
 
 router.post('/team', async (req, res): Promise<void> => {
-  const { name, role, dept, skills, tier, image } = req.body
+  const { name, role, dept, instagramUrl, linkedinUrl, tier, image } = req.body
   if (!name || !role || !dept) { res.status(400).json({ error: 'name, role, dept are required' }); return }
   const [member] = await db.insert(teamMembers).values({
-    id: `tm${Date.now()}`, name, role, dept, skills: skills ?? [], tier: tier ?? 'Core', image: image ?? null
+    id: `tm${Date.now()}`, name, role, dept, instagramUrl: instagramUrl ?? null, linkedinUrl: linkedinUrl ?? null, tier: tier ?? 'Core', image: image ?? null
   }).returning()
   res.status(201).json(member)
 })

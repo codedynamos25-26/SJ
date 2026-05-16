@@ -9,13 +9,21 @@ interface EventDetail {
   id: string; type: string; date: string; title: string
   description: string; slots: number; total: number
   status: string; location: string; accent: string
-  image?: string; enrolledByMe: boolean
-  platform?: string; externalUrl?: string
+  image?: string;  enrollmentXp: number
+  platform: string | null
+  externalUrl: string | null
   benefits?: string[]
   schedule?: { time: string; activity: string }[]
   requirements?: string[]
   winners?: Array<{ id: string; name: string; position: number; awardXp: number }>
 }
+
+const ensureAbsoluteUrl = (url?: string | null) => {
+  if (!url) return undefined
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `https://${url}`
+}
+
 
 const typeColor: Record<string, string> = {
   Workshop: 'bg-primary text-on-primary',
@@ -293,38 +301,38 @@ const EventDetailPage = () => {
                 <div className="h-full transition-all" style={{ width: `${fillPct}%`, background: event.accent }} />
               </div>
 
-              {event.externalUrl ? (
+              <button
+                onClick={handleAction}
+                disabled={isPending || event.status === 'Closed' || (isFull && !event.enrolledByMe)}
+                className={`w-full py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all disabled:opacity-40 ${
+                  event.status === 'Closed'
+                    ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
+                    : event.enrolledByMe
+                    ? 'border-error text-error hover:bg-error hover:text-white'
+                    : isFull
+                    ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
+                    : `border-current hover:text-on-primary ${accentCls}`
+                }`}
+                style={!event.enrolledByMe && !isFull && event.status !== 'Closed' ? { borderColor: event.accent, color: event.accent } : undefined}
+              >
+                {isPending ? 'Processing...'
+                  : event.status === 'Closed' ? 'Event Ended'
+                  : event.enrolledByMe ? 'Cancel Registration'
+                  : isFull ? 'Queue Full'
+                  : !user ? 'Login to Register!'
+                  : 'Register!'}
+              </button>
+
+              {event.enrolledByMe && event.externalUrl && (
                 <a
-                  href={event.externalUrl}
+                  href={ensureAbsoluteUrl(event.externalUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`w-full py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${accentCls} hover:bg-current hover:text-black`}
+                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${accentCls} hover:bg-current hover:text-black`}
                   style={{ borderColor: event.accent, color: event.accent }}
                 >
-                  JOIN ON {event.platform?.toUpperCase() || 'PLATFORM'}
+                  JOIN ON {event.platform?.toUpperCase() || 'EXTERNAL PLATFORM'}
                 </a>
-              ) : (
-                <button
-                  onClick={handleAction}
-                  disabled={isPending || event.status === 'Closed' || (isFull && !event.enrolledByMe)}
-                  className={`w-full py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all disabled:opacity-40 ${
-                    event.status === 'Closed'
-                      ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
-                      : event.enrolledByMe
-                      ? 'border-error text-error hover:bg-error hover:text-white'
-                      : isFull
-                      ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
-                      : `border-current hover:text-on-primary ${accentCls}`
-                  }`}
-                  style={!event.enrolledByMe && !isFull && event.status !== 'Closed' ? { borderColor: event.accent, color: event.accent } : undefined}
-                >
-                  {isPending ? 'Processing...'
-                    : event.status === 'Closed' ? 'Event Ended'
-                    : event.enrolledByMe ? 'Cancel Registration'
-                    : isFull ? 'Queue Full'
-                    : !user ? 'Login to Register!'
-                    : 'Register!'}
-                </button>
               )}
 
               {event.enrolledByMe && (

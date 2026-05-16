@@ -85,10 +85,12 @@ html.light {
     background-color: var(--bg-body);
     color: var(--text-base);
     font-family: 'Inter', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
   }
-  /* Hide default cursor on pointer devices */
-  @media (pointer: fine) {
-    *, *::before, *::after { cursor: none !important; }
+  input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
   }
 
   /* Global media treatment: grayscale by default, color on hover/focus/active */

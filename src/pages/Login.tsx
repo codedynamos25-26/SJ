@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { api } from '../lib/api'
 import logoImg from '../assets/logo.jpeg'
 
 const Login = () => {
@@ -25,6 +26,8 @@ const Login = () => {
       setError(msg ?? 'Login failed. Check your credentials.')
     }
   }
+
+
 
   return (
     <div className="bg-background font-body text-on-surface selection:bg-primary selection:text-on-primary min-h-screen flex items-center justify-center overflow-hidden">
@@ -102,9 +105,9 @@ const Login = () => {
                 <label className="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface-variant" htmlFor="password">
                   Security Cipher
                 </label>
-                <a className="font-label text-[9px] uppercase tracking-widest text-primary hover:underline transition-all" href="#">
+                <Link className="font-label text-[9px] uppercase tracking-widest text-primary hover:underline transition-all" to="/forgot-password">
                   Recovery protocol
-                </a>
+                </Link>
               </div>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none border-r border-outline-variant/30 mr-4">
@@ -139,6 +142,8 @@ const Login = () => {
               )}
             </button>
           </form>
+
+
 
 
           {/* Footer Link */}

@@ -12,6 +12,7 @@ export interface AuthUser {
   usn?: string
   department?: string
   year?: string
+  semester?: string
   githubUrl?: string
   leetcodeProfile?: string
   leetcodeSolved?: number
@@ -23,7 +24,7 @@ interface AuthContextValue {
   token: string | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<AuthUser>
-  signup: (data: { email: string; name: string; password: string; track: string; usn?: string; department?: string; year?: string }) => Promise<AuthUser>
+  signup: (data: { email: string; name: string; password: string; track: string; semester?: string; usn?: string; department?: string; year?: string }) => Promise<AuthUser>
   logout: () => void
   isAdmin: boolean
 }
@@ -90,7 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [])
 
-  const signup = useCallback(async (data: { email: string; name: string; password: string; track: string; usn?: string; department?: string; year?: string }) => {
+  const signup = useCallback(async (data: { email: string; name: string; password: string; track: string; semester?: string; usn?: string; department?: string; year?: string }) => {
     setIsLoading(true)
     try {
       const res = await api.post<{ token: string; user: AuthUser }>('/auth/signup', data)

@@ -34,6 +34,7 @@ router.get('/', optionalAuth, async (req, res) => {
       prizes: challenges.prizes,
       status: challenges.status,
       endsAt: challenges.endsAt,
+      externalUrl: challenges.externalUrl,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`,
       enrolledByMe: req.user
         ? sql<boolean>`EXISTS(SELECT 1 FROM ${userActiveChallenges} WHERE ${userActiveChallenges.challengeId} = ${challenges.id} AND ${userActiveChallenges.userId} = ${req.user.userId})`
@@ -58,6 +59,7 @@ router.get('/', optionalAuth, async (req, res) => {
       description: challenges.description,
       status: challenges.status,
       endsAt: challenges.endsAt,
+      externalUrl: challenges.externalUrl,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`,
       enrolledByMe: req.user
         ? sql<boolean>`EXISTS(SELECT 1 FROM ${userActiveChallenges} WHERE ${userActiveChallenges.challengeId} = ${challenges.id} AND ${userActiveChallenges.userId} = ${req.user.userId})`
@@ -88,6 +90,7 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
         prizes: string[]
         status: string
         endsAt: Date | null
+        externalUrl: string | null
         participants: number
       }
     | undefined
@@ -107,6 +110,7 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
       prizes: challenges.prizes,
       status: challenges.status,
       endsAt: challenges.endsAt,
+      externalUrl: challenges.externalUrl,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`
     })
     .from(challenges)
@@ -126,6 +130,7 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
       description: challenges.description,
       status: challenges.status,
       endsAt: challenges.endsAt,
+      externalUrl: challenges.externalUrl,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`
     })
     .from(challenges)

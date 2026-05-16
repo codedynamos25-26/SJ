@@ -2,15 +2,18 @@ import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import { api } from '../lib/api'
 import logoImg from '../assets/logo.jpeg'
 
-const tracks = [
-  { id: 'Frontend', label: 'Frontend', icon: 'web' },
-  { id: 'Backend', label: 'Backend', icon: 'dns' },
-  { id: 'ML', label: 'ML / AI', icon: 'psychology' },
-  { id: 'Security', label: 'Security', icon: 'shield' },
-  { id: 'Fullstack', label: 'Fullstack', icon: 'hub' },
-  { id: 'Others', label: 'Others', icon: 'more_horiz' },
+const semesters = [
+  { id: '1', label: 'SEM_1' },
+  { id: '2', label: 'SEM_2' },
+  { id: '3', label: 'SEM_3' },
+  { id: '4', label: 'SEM_4' },
+  { id: '5', label: 'SEM_5' },
+  { id: '6', label: 'SEM_6' },
+  { id: '7', label: 'SEM_7' },
+  { id: '8', label: 'SEM_8' },
 ]
 
 const Signup = () => {
@@ -24,7 +27,7 @@ const Signup = () => {
   const [usn, setUsn] = useState('')
   const [department, setDepartment] = useState('')
   const [year, setYear] = useState('')
-  const [selectedTrack, setSelectedTrack] = useState('')
+  const [selectedSemester, setSelectedSemester] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -35,8 +38,12 @@ const Signup = () => {
       setError('Passwords do not match.')
       return
     }
-    if (!selectedTrack) {
-      setError('Select a primary discipline.')
+    if (!usn || !department || !year) {
+      setError('USN, Department, and Year are required.')
+      return
+    }
+    if (!selectedSemester) {
+      setError('Select your current semester.')
       return
     }
 
@@ -45,7 +52,8 @@ const Signup = () => {
         email, 
         name, 
         password, 
-        track: selectedTrack,
+        track: 'Fullstack', // Default track
+        semester: selectedSemester,
         usn: usn || undefined,
         department: department || undefined,
         year: year || undefined
@@ -56,6 +64,8 @@ const Signup = () => {
       setError(msg ?? 'Signup failed. Please try again.')
     }
   }
+
+
 
   return (
     <div className="bg-background font-body text-on-surface min-h-screen flex items-center justify-center overflow-hidden py-12">
@@ -156,6 +166,7 @@ const Signup = () => {
                   type="text"
                   value={usn}
                   onChange={(e) => setUsn(e.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -169,6 +180,7 @@ const Signup = () => {
                   type="text"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -182,6 +194,7 @@ const Signup = () => {
                   type="text"
                   value={year}
                   onChange={(e) => setYear(e.target.value)}
+                  required
                 />
               </div>
             </div>
@@ -230,46 +243,27 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Track Selection */}
+            {/* Semester Selection */}
             <div className="space-y-3">
               <label className="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant ml-1">
-                Primary Discipline
+                Current Semester
               </label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {tracks.map((t) => (
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                {semesters.map((s) => (
                   <button
-                    key={t.id}
+                    key={s.id}
                     type="button"
-                    onClick={() => setSelectedTrack(t.id)}
-                    className={`flex flex-col items-center gap-1.5 py-3 rounded-sm border text-[8px] font-mono font-bold uppercase tracking-wider transition-all ${
-                      selectedTrack === t.id
+                    onClick={() => setSelectedSemester(s.id)}
+                    className={`flex flex-col items-center justify-center py-3 rounded-sm border text-[10px] font-mono font-bold uppercase tracking-wider transition-all ${
+                      selectedSemester === s.id
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-outline-variant bg-surface-variant/30 text-on-surface-variant hover:border-primary/50 hover:text-on-surface'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-lg">{t.icon}</span>
-                    {t.label}
+                    {s.label}
                   </button>
                 ))}
               </div>
-
-              {/* Conditional Input for Others */}
-              <AnimatePresence>
-                {selectedTrack === 'Others' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="pt-2"
-                  >
-                    <input
-                      className="w-full bg-surface-variant/30 border border-outline-variant focus:border-primary focus:ring-0 rounded-sm py-3 px-4 text-on-surface font-body placeholder-on-surface-variant/40 transition-all text-xs"
-                      placeholder="WHAT? (PLEASE SPECIFY)"
-                      autoFocus
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
             <button
@@ -283,6 +277,8 @@ const Signup = () => {
               )}
             </button>
           </form>
+
+
 
           <p className="text-center mt-8 font-mono text-[11px] text-on-surface-variant tracking-wide relative z-10">
             ALREADY REGISTERED?{' '}

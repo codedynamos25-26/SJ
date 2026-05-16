@@ -10,6 +10,7 @@ router.get('/', async (_req, res) => {
     .select({
       id:           users.id,
       name:         users.name,
+      usn:          users.usn,
       xp:           users.xp,
       rank:         users.rank,
       track:        users.track,
@@ -18,6 +19,7 @@ router.get('/', async (_req, res) => {
       githubUrl:    users.githubUrl,
       leetcodeProfile: users.leetcodeProfile,
       leetcodeSolved: users.leetcodeSolved,
+      leetcodeRating: users.leetcodeRating,
       completedChallenges: sql<number>`0`,   // placeholder – extend when challenge completions are tracked
       streak:       sql<number>`0`,           // placeholder
     })
