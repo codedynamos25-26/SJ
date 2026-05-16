@@ -2,23 +2,15 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import nodemailer from 'nodemailer'
-import { OAuth2Client } from 'google-auth-library'
 import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'mock-client-id')
-
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Use implicit TLS on port 465
+  service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER || 'dummy@gmail.com',
-    pass: process.env.EMAIL_PASS || 'dummy',
-  },
-  tls: {
-    rejectUnauthorized: false
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   }
 })
 
@@ -117,69 +109,6 @@ router.get('/me', authenticate, async (req, res): Promise<void> => {
   res.json({ id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp, rank: user.rank, usn: user.usn, department: user.department, year: user.year, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track, createdAt: user.createdAt })
 })
 
-// POST /api/auth/google
-router.post('/google', async (req, res): Promise<void> => {
-  const { credential } = req.body
-  if (!credential) {
-    res.status(400).json({ error: 'Google credential is required' })
-    return
-  }
-
-  try {
-    let payload;
-    if (process.env.GOOGLE_CLIENT_ID) {
-      const ticket = await googleClient.verifyIdToken({
-        idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      })
-      payload = ticket.getPayload()
-    } else {
-      // Mock mode for local testing without Client ID
-      const decoded = JSON.parse(Buffer.from(credential.split('.')[1], 'base64').toString())
-      payload = decoded
-    }
-
-    if (!payload || !payload.email) {
-      res.status(400).json({ error: 'Invalid Google token' })
-      return
-    }
-
-    const email = payload.email.toLowerCase()
-    let [user] = await db.select().from(users).where(eq(users.email, email))
-
-    if (!user) {
-      // Create new user if not exists
-      const id = `u${Date.now()}`
-      const [newUser] = await db.insert(users).values({
-        id,
-        email,
-        name: payload.name || 'Google User',
-        role: 'member',
-        googleId: payload.sub || null,
-        usn: null,
-        department: null,
-        year: null,
-        xp: 0,
-        rank: 0,
-        track: 'Fullstack',
-      }).returning()
-      user = newUser
-    } else if (!user.googleId && payload.sub) {
-      // Link Google account to existing user
-      const [updated] = await db.update(users).set({ googleId: payload.sub }).where(eq(users.id, user.id)).returning()
-      user = updated
-    }
-
-    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role as 'member' | 'admin' })
-    res.json({
-      token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp, rank: user.rank, usn: user.usn, department: user.department, year: user.year, semester: user.semester, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track },
-    })
-  } catch (error) {
-    console.error('Google Auth Error:', error)
-    res.status(401).json({ error: 'Google authentication failed' })
-  }
-})
 
 // POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res): Promise<void> => {
