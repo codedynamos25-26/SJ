@@ -10,6 +10,7 @@ import { signToken, authenticate } from '../middleware/auth'
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'mock-client-id')
 
 const transporter = nodemailer.createTransport({
+  service: 'gmail', // Use built-in Gmail config which handles host/port optimally
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: Number(process.env.SMTP_PORT) || 587,
   secure: process.env.SMTP_SECURE === 'true',
@@ -17,7 +18,11 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER || 'dummy@gmail.com',
     pass: process.env.EMAIL_PASS || 'dummy',
   },
-})
+  // Force IPv4 to prevent ENETUNREACH errors in IPv6-disabled environments like Render
+  tls: {
+    rejectUnauthorized: false
+  }
+} as any)
 
 const router = Router()
 

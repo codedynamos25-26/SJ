@@ -1,6 +1,11 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import dns from 'dns'
+
+// Force Node 18+ to prefer IPv4 for DNS resolution.
+// This fixes ENETUNREACH errors for smtp.gmail.com on Render.
+dns.setDefaultResultOrder('ipv4first')
 
 import authRouter from './routes/auth'
 import eventsRouter from './routes/events'
