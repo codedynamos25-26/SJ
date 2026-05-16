@@ -14,6 +14,8 @@ import adminRouter from './routes/admin'
 import announcementsRouter from './routes/announcements'
 import userRouter from './routes/user'
 import statsRouter from './routes/stats'
+import { db } from './db'
+import { sql } from 'drizzle-orm'
 
 const app = express()
 const PORT = process.env.PORT ?? 4000
@@ -24,13 +26,8 @@ app.use(helmet({
 }))
 
 // In dev, allow all origins. In production, restrict to the Vercel frontend URL.
-const allowedOrigins = [
-  'https://codedynamos-cmru.vercel.app',
-  process.env.FRONTEND_URL?.replace(/\/+$/, ''),
-].filter(Boolean) as string[]
-
 app.use(cors({ 
-  origin: allowedOrigins.length > 0 ? allowedOrigins : true, 
+  origin: true, 
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -58,7 +55,27 @@ app.use('/api/stats', statsRouter)
 // 404 fallback
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  // Auto-migration for production DB stability
+  try {
+    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "semester" text;`)
+    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_token" text;`)
+    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_token_expiry" timestamp;`)
+    await db.execute(sql`ALTER TABLE "team_members" ADD COLUMN IF NOT EXISTS "instagram_url" text;`)
+    await db.execute(sql`ALTER TABLE "team_members" ADD COLUMN IF NOT EXISTS "linkedin_url" text;`)
+    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "external_url" text;`)
+    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "platform" text;`)
+    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;`)
+    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;`)
+    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "external_url" text;`)
+    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;`)
+    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;`)
+    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "participants" integer DEFAULT 0;`)
+    console.log("✓ Database auto-migration complete")
+  } catch (err) {
+    console.error("Auto-migration skipped or failed:", err)
+  }
+
   console.log(`\n🚀  Code Dynamos API running on http://localhost:${PORT}`)
   console.log(`   Health: http://localhost:${PORT}/health`)
   console.log(`   Auth:   POST /api/auth/login | POST /api/auth/signup`)
