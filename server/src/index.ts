@@ -19,16 +19,22 @@ const app = express()
 const PORT = process.env.PORT ?? 4000
 
 // Security + parsing
-app.use(helmet())
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}))
 
 // In dev, allow all origins. In production, restrict to the Vercel frontend URL.
-// Clean the URL to avoid CORS mismatch due to trailing slashes
-const allowedOrigins = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL.replace(/\/+$/, '')]
-  : true  // allow all in dev
+const allowedOrigins = [
+  'https://codedynamos-cmru.vercel.app',
+  process.env.FRONTEND_URL?.replace(/\/+$/, ''),
+].filter(Boolean) as string[]
 
-
-app.use(cors({ origin: allowedOrigins, credentials: true }))
+app.use(cors({ 
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true, 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
