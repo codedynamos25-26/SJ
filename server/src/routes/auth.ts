@@ -134,15 +134,18 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
 
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      // Run email sending asynchronously so the user doesn't wait for the network request
-      transporter.sendMail({
-        from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: 'Password Reset Request',
-        html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
-      }).catch(err => {
-        console.error('Failed to send email in background:', err)
-      })
+      try {
+        await transporter.sendMail({
+          from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
+          to: user.email,
+          subject: 'Password Reset Request',
+          html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
+        })
+      } catch (err) {
+        console.error('Failed to send email:', err)
+        res.status(500).json({ error: 'Failed to send email due to SMTP configuration error.' })
+        return
+      }
     } else {
       console.log(`\n[MOCK EMAIL] Reset Link: ${resetUrl}\n`)
     }
