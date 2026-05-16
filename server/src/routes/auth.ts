@@ -10,19 +10,17 @@ import { signToken, authenticate } from '../middleware/auth'
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'mock-client-id')
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Use built-in Gmail config which handles host/port optimally
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === 'true',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // Use implicit TLS on port 465
   auth: {
     user: process.env.EMAIL_USER || 'dummy@gmail.com',
     pass: process.env.EMAIL_PASS || 'dummy',
   },
-  // Force IPv4 to prevent ENETUNREACH errors in IPv6-disabled environments like Render
   tls: {
     rejectUnauthorized: false
   }
-} as any)
+})
 
 const router = Router()
 
@@ -207,16 +205,15 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
 
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      try {
-        await transporter.sendMail({
-          from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
-          to: user.email,
-          subject: 'Password Reset Request',
-          html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
-        })
-      } catch (err) {
-        console.error('Failed to send email:', err)
-      }
+      // Run email sending asynchronously so the user doesn't wait for the network request
+      transporter.sendMail({
+        from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: 'Password Reset Request',
+        html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
+      }).catch(err => {
+        console.error('Failed to send email in background:', err)
+      })
     } else {
       console.log(`\n[MOCK EMAIL] Reset Link: ${resetUrl}\n`)
     }
