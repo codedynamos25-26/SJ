@@ -180,44 +180,47 @@ router.post('/google', async (req, res): Promise<void> => {
 
 // POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res): Promise<void> => {
-  const { email } = req.body
-  if (!email) {
-    res.status(400).json({ error: 'Email is required' })
-    return
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()))
-  if (!user) {
-    // Send success even if user not found to prevent email enumeration
-    res.json({ message: 'If an account exists, a reset link was sent.' })
-    return
-  }
-
-  const resetToken = crypto.randomBytes(32).toString('hex')
-  const resetTokenExpiry = new Date(Date.now() + 3600000) // 1 hour
-
-  await db.update(users).set({ resetToken, resetTokenExpiry }).where(eq(users.id, user.id))
-
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
-
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    try {
-      await transporter.sendMail({
-        from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: 'Password Reset Request',
-        html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
-      })
-    } catch (err) {
-      console.error('Failed to send email:', err)
+  try {
+    const { email } = req.body
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' })
+      return
     }
-  } else {
-    // Fallback if no email configured
-    console.log(`\n\n[MOCK EMAIL] Password Reset requested for ${user.email}`)
-    console.log(`[MOCK EMAIL] Reset Link: ${resetUrl}\n\n`)
-  }
 
-  res.json({ message: 'If an account exists, a reset link was sent.' })
+    const emailStr = String(email).toLowerCase()
+    const [user] = await db.select().from(users).where(eq(users.email, emailStr))
+    if (!user) {
+      res.json({ message: 'If an account exists, a reset link was sent.' })
+      return
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetTokenExpiry = new Date(Date.now() + 3600000)
+
+    await db.update(users).set({ resetToken, resetTokenExpiry }).where(eq(users.id, user.id))
+
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
+
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      try {
+        await transporter.sendMail({
+          from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
+          to: user.email,
+          subject: 'Password Reset Request',
+          html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
+        })
+      } catch (err) {
+        console.error('Failed to send email:', err)
+      }
+    } else {
+      console.log(`\n[MOCK EMAIL] Reset Link: ${resetUrl}\n`)
+    }
+
+    res.json({ message: 'If an account exists, a reset link was sent.' })
+  } catch (error) {
+    console.error('Error in forgot-password:', error)
+    res.status(500).json({ error: 'Internal server error while processing request' })
+  }
 })
 
 // POST /api/auth/reset-password

@@ -26,13 +26,15 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
   const lastScrollY = useRef(0)
 
   useEffect(() => {
-    fetch('/api/announcements')
-      .then(r => r.json())
-      .then(data => {
-        if (data && data.length > 0) setAnnouncements(data)
-        else setAnnouncements([{ id: 'default', text: '📢 ANNOUNCING WEB WEAVE \'26: Two-Day Hybrid Web Design Event • April 8th & 9th 2026 • Register Now!' }])
-      })
-      .catch(() => setAnnouncements([{ id: 'err', text: '📢 ANNOUNCING WEB WEAVE \'26: Two-Day Hybrid Web Design Event • April 8th & 9th 2026 • Register Now!' }]))
+    import('../../lib/api').then(({ api }) => {
+      api.get('/announcements')
+        .then(r => {
+          const data = r.data
+          if (data && data.length > 0) setAnnouncements(data)
+          else setAnnouncements([{ id: 'default', text: '📢 ANNOUNCING WEB WEAVE \'26: Two-Day Hybrid Web Design Event • April 8th & 9th 2026 • Register Now!' }])
+        })
+        .catch(() => setAnnouncements([{ id: 'err', text: '📢 ANNOUNCING WEB WEAVE \'26: Two-Day Hybrid Web Design Event • April 8th & 9th 2026 • Register Now!' }]))
+    })
   }, [])
 
   useEffect(() => {
