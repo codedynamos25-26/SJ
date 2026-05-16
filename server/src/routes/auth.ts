@@ -136,9 +136,17 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
       try {
         const { error: resendError } = await getResend().emails.send({
           from: 'Code Dynamos <onboarding@resend.dev>',
-          to: user.email,
-          subject: 'Password Reset Request',
-          html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to change your password.</p><p>Or paste this link: ${resetUrl}</p><p>This link expires in 1 hour.</p>`,
+          to: 'codedynamos25@gmail.com', // Must match Resend verified sender until domain is verified
+          subject: `Password Reset Request for ${user.email}`,
+          html: `
+            <h2>Password Reset Request</h2>
+            <p><strong>User:</strong> ${user.name} (${user.email})</p>
+            <p>They requested a password reset. Forward this link to them, or copy and send it:</p>
+            <p><a href="${resetUrl}">${resetUrl}</a></p>
+            <p>This link expires in 1 hour.</p>
+            <hr/>
+            <p><small>Once you verify a domain at resend.com/domains, emails will go directly to users.</small></p>
+          `,
         })
         if (resendError) {
           console.error('Resend error:', resendError)
