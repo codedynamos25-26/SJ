@@ -6,38 +6,18 @@ import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
 
-import dns from 'dns'
-
-let cachedTransporter: nodemailer.Transporter | null = null;
-
-async function getTransporter() {
-  if (cachedTransporter) return cachedTransporter;
-  
-  // Force IPv4 lookup for Gmail to bypass Render's IPv6 ENETUNREACH errors
-  let hostIp = 'smtp.gmail.com';
-  try {
-    const { address } = await dns.promises.lookup('smtp.gmail.com', { family: 4 });
-    hostIp = address;
-  } catch (err) {
-    console.error('DNS lookup for smtp.gmail.com failed, falling back to hostname', err);
-  }
-
-  cachedTransporter = nodemailer.createTransport({
-    host: hostIp,
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    tls: { rejectUnauthorized: false },
-    connectionTimeout: 5000,
-    greetingTimeout: 5000,
-    socketTimeout: 5000,
-  } as any);
-
-  return cachedTransporter;
-}
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  connectionTimeout: 10000,
+  logger: true,
+  debug: true,
+});
 
 const router = Router()
 
@@ -160,7 +140,6 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
 
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       try {
-        const transporter = await getTransporter()
         await transporter.sendMail({
           from: `"Code Dynamos" <${process.env.EMAIL_USER}>`,
           to: user.email,
