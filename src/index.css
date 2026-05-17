@@ -337,6 +337,16 @@ a, button, [role="button"] {
   cursor: pointer;
 }
 
+@media (pointer: fine) {
+  body {
+    cursor: none;
+  }
+
+  a, button, [role="button"] {
+    cursor: none;
+  }
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }

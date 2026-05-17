@@ -68,7 +68,7 @@ const CustomCursor = () => {
         animate={{ scale: isHovering ? 1.5 : 1 }}
         transition={{ duration: 0.15 }}
       >
-        <div className="w-2 h-2 bg-primary" />
+        <div className="w-2 h-2 bg-primary rounded-none" />
       </motion.div>
 
       {/* Ring — spring follows */}
@@ -88,7 +88,7 @@ const CustomCursor = () => {
         transition={{ duration: 0.2 }}
       >
         <div
-          className="w-full h-full border border-primary"
+          className="w-full h-full border border-primary rounded-none"
           style={{ boxShadow: isHovering ? '0 0 12px rgba(211,239,87,0.4)' : 'none' }}
         />
       </motion.div>

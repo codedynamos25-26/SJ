@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute, AdminRoute } from './components/ui/ProtectedRoute'
+import CustomCursor from './components/ui/CustomCursor'
 import HomePage from './pages/HomePage'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -27,6 +28,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <CustomCursor />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
