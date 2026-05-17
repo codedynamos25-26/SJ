@@ -195,9 +195,12 @@ const getDriveFolderImages = async (folderId: string): Promise<DriveFolderImage[
   return getDriveScrapedImages(folderId)
 }
 
-const applyExpirationStatus = <T extends { endsAt?: Date | string | null; status: string }>(item: T) => {
+const applyExpirationStatus = <T extends { endsAt?: Date | string | null; status: string; slots?: number }>(item: T) => {
   if (item.endsAt && new Date(item.endsAt) < new Date()) {
     return { ...item, status: 'Closed', closedByTime: true }
+  }
+  if (item.slots === 0 && item.status !== 'Closed') {
+    return { ...item, status: 'Full', closedByTime: false }
   }
   return { ...item, closedByTime: false }
 }
@@ -394,6 +397,7 @@ router.get('/challenges', async (_req, res) => {
       status: challenges.status,
       enrollmentXp: challenges.enrollmentXp,
       endsAt: challenges.endsAt,
+      image: challenges.image,
     }).from(challenges)
     res.json(all.map(applyExpirationStatus))
   } catch (error) {
@@ -411,6 +415,7 @@ router.get('/challenges', async (_req, res) => {
       status: challenges.status,
       enrollmentXp: challenges.enrollmentXp,
       endsAt: challenges.endsAt,
+      image: challenges.image,
     }).from(challenges)
     res.json(all.map((item) => applyExpirationStatus({ ...item, requirements: [], timeline: [], prizes: [] })))
   }
@@ -429,7 +434,7 @@ router.get('/challenges/:id/participants', async (req, res) => {
 })
 
 router.post('/challenges', async (req, res): Promise<void> => {
-  const { title, difficulty, xp, pool, tags, description, requirements, timeline, prizes, status, enrollmentXp, endsAt, externalUrl } = req.body as Partial<Challenge>
+  const { title, difficulty, xp, pool, tags, description, requirements, timeline, prizes, status, enrollmentXp, endsAt, externalUrl, image } = req.body as Partial<Challenge> & { image?: string }
   if (!title || !difficulty || xp == null || pool == null || !description) {
     res.status(400).json({ error: 'title, difficulty, xp, pool, description are required' }); return
   }
@@ -448,6 +453,7 @@ router.post('/challenges', async (req, res): Promise<void> => {
       enrollmentXp: Number(enrollmentXp ?? 0),
       endsAt: toNullableDate(endsAt),
       externalUrl: externalUrl ?? null,
+      image: image ?? null,
     }).returning()
   } catch (error) {
     if (!isLegacyChallengeSchemaError(error)) throw error
@@ -461,6 +467,7 @@ router.post('/challenges', async (req, res): Promise<void> => {
         enrollmentXp: Number(enrollmentXp ?? 0),
         endsAt: toNullableDate(endsAt),
         externalUrl: externalUrl ?? null,
+        image: image ?? null,
       }).returning()
     ch = { ...ch, requirements: [], timeline: [], prizes: [] }
   }
@@ -484,6 +491,7 @@ router.patch('/challenges/:id', async (req, res): Promise<void> => {
   if ('timeline' in input) fields.timeline = toLineArray(input.timeline)
   if ('prizes' in input) fields.prizes = toLineArray(input.prizes)
   if ('externalUrl' in input) fields.externalUrl = input.externalUrl
+  if ('image' in input) fields.image = input.image
 
   let updated
   try {

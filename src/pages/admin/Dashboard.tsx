@@ -8,7 +8,7 @@ type Tab = 'members' | 'events' | 'challenges' | 'gallery' | 'projects' | 'annou
 
 interface Member { id: string; email: string; name: string; role: string; xp: number; track: string; usn?: string; department?: string; year?: string; githubUrl?: string; createdAt: string }
 interface Event { id: string; type: string; date: string; title: string; description: string; slots: number; total: number; status: string; location: string; accent: string; image?: string; benefits?: string[]; schedule?: (string | { time: string; activity: string })[]; requirements?: string[]; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean }
-interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string; status: string; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean; requirements?: string[]; timeline?: string[]; prizes?: string[] }
+interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string; status: string; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean; requirements?: string[]; timeline?: string[]; prizes?: string[]; image?: string }
 interface GalleryPhoto { id: string; tag: string; year: string; label: string; span: string; img: string; driveUrl?: string | null }
 interface Project { id: string; title: string; description: string; status: string; tech: string[]; stars: number; forks: number; img: string; githubUrl?: string }
 interface TeamMember { id: string; name: string; role: string; dept: string; tier: string; image?: string; instagramUrl?: string; linkedinUrl?: string }
@@ -36,17 +36,35 @@ const toLineList = (value: unknown): string[] => {
 }
 
 const toScheduleList = (value: unknown): (string | { time: string; activity: string })[] => {
-  const lines = toLineList(value)
+  if (Array.isArray(value)) {
+    return value.map((entry) => {
+      if (entry && typeof entry === 'object' && 'time' in entry && 'activity' in entry) {
+        return entry as { time: string; activity: string };
+      }
+      const line = String(entry).trim();
+      if (!line) return null;
+      const dividerIndex = line.indexOf('|');
+      if (dividerIndex === -1) return line;
+
+      const time = line.slice(0, dividerIndex).trim();
+      const activity = line.slice(dividerIndex + 1).trim();
+      if (!time || !activity) return line;
+
+      return { time, activity };
+    }).filter((x): x is string | { time: string; activity: string } => x !== null);
+  }
+
+  const lines = toLineList(value);
   return lines.map((line) => {
-    const dividerIndex = line.indexOf('|')
-    if (dividerIndex === -1) return line
+    const dividerIndex = line.indexOf('|');
+    if (dividerIndex === -1) return line;
 
-    const time = line.slice(0, dividerIndex).trim()
-    const activity = line.slice(dividerIndex + 1).trim()
-    if (!time || !activity) return line
+    const time = line.slice(0, dividerIndex).trim();
+    const activity = line.slice(dividerIndex + 1).trim();
+    if (!time || !activity) return line;
 
-    return { time, activity }
-  })
+    return { time, activity };
+  });
 }
 
 const toScheduleTextareaValue = (value: unknown): string => {
@@ -80,6 +98,7 @@ const blankChallenge = (): Partial<Challenge> => ({
   status: 'Open',
   enrollmentXp: 0,
   externalUrl: '',
+  image: '',
 })
 const blankPhoto = (): Partial<GalleryPhoto> => ({ tag: 'Workshops', year: '2026', label: '', span: '', img: '', driveUrl: '' })
 const blankProject = (): Partial<Project> => ({ title: '', description: '', status: 'Beta', tech: [], stars: 0, forks: 0, img: '', githubUrl: '' })
@@ -130,10 +149,12 @@ const AdminDashboard = () => {
   const createEventMutation = useMutation({
     mutationFn: (data: Partial<Event>) => api.post('/admin/events', data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-events'] }); setEventModal({ open: false, data: blankEvent(), editing: false }) },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to create event'),
   })
   const updateEventMutation = useMutation({
     mutationFn: (data: Partial<Event>) => api.patch(`/admin/events/${data.id}`, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-events'] }); setEventModal({ open: false, data: blankEvent(), editing: false }) },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to update event'),
   })
   const deleteEventMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/events/${id}`),
@@ -144,10 +165,12 @@ const AdminDashboard = () => {
   const createChallengeMutation = useMutation({
     mutationFn: (data: Partial<Challenge>) => api.post('/admin/challenges', data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-challenges'] }); setChallengeModal({ open: false, data: blankChallenge(), editing: false }) },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to create challenge'),
   })
   const updateChallengeMutation = useMutation({
     mutationFn: (data: Partial<Challenge>) => api.patch(`/admin/challenges/${data.id}`, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-challenges'] }); setChallengeModal({ open: false, data: blankChallenge(), editing: false }) },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to update challenge'),
   })
   const deleteChallengeMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/challenges/${id}`),
@@ -403,7 +426,7 @@ const AdminDashboard = () => {
                       <span className={`text-[9px] font-mono px-2 py-0.5 border uppercase ${ev.status === 'Open' ? 'border-tertiary-fixed/30 text-tertiary-fixed' : 'border-error/30 text-error'}`}>{ev.status}</span>
                     </div>
                     <Link to={`/events/${ev.id}`} className="font-bold text-white group-hover:text-primary transition-colors inline-block">{ev.title}</Link>
-                    <div className="text-[10px] font-mono text-on-surface-variant mt-1">{ev.date} · {ev.location} · {ev.slots}/{ev.total} slots</div>
+                    <div className="text-[10px] font-mono text-on-surface-variant mt-1">{ev.date} · {ev.location} · {ev.total - ev.slots} Participants</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Link
@@ -698,7 +721,7 @@ const AdminDashboard = () => {
                 { field: 'image', label: 'Image (URL or Upload)', type: 'image-upload' },
                 { field: 'slots', label: 'Available Slots', type: 'number' },
                 { field: 'total', label: 'Total Capacity', type: 'number' },
-                { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Full', 'Closing Soon', 'Closed'] },
+                { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Full', 'Closed'] },
                 { field: 'enrollmentXp', label: 'Registration Bonus (XP)', type: 'number' },
                 { field: 'externalUrl', label: 'External Contest/Meeting Link (e.g. HackerRank)', type: 'text' },
                 { field: 'benefits', label: "Benefits / What you'll get (comma separated)", type: 'tags' },
@@ -765,16 +788,9 @@ const AdminDashboard = () => {
                       <div className="space-y-2">
                         <input
                           type="text"
-                          placeholder="Paste URL or Drive link..."
+                          placeholder="Paste URL..."
                           value={(eventModal.data[field] as string) ?? ''}
-                          onChange={(e) => {
-                            let val = e.target.value;
-                            if (val.includes('drive.google.com/file/d/')) {
-                              const id = val.split('/d/')[1]?.split('/')[0];
-                              if (id) val = `https://lh3.googleusercontent.com/d/${id}`;
-                            }
-                            setEventModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
-                          }}
+                          onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
                           className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                         />
                         <input
@@ -790,6 +806,12 @@ const AdminDashboard = () => {
                           }}
                           className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
                         />
+                        {eventModal.data.image && (
+                          <div className="mt-2 flex items-center gap-3">
+                            <img src={eventModal.data.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-primary/40" />
+                            <span className="text-[10px] font-mono text-primary">Image ready</span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <input
@@ -863,6 +885,7 @@ const AdminDashboard = () => {
                 { field: 'enrollmentXp', label: 'Registration Bonus (XP)', type: 'number' },
                 { field: 'pool', label: 'Prize Pool (₹)', type: 'number' },
                 { field: 'status', label: 'Status', type: 'select', options: ['Open', 'Closed'] },
+                { field: 'image', label: 'Image (URL or Upload)', type: 'image-upload' },
                 { field: 'externalUrl', label: 'External Contest Link (e.g. HackerRank)', type: 'text' },
                 { field: 'endsAt', label: 'Closing Date & Time (Override Status)', type: 'datetime-local' },
                 { field: 'tags', label: 'Tags (comma separated)', type: 'tags' },
@@ -932,6 +955,35 @@ const AdminDashboard = () => {
                         }))}
                         className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-24 focus:outline-none"
                       />
+                    ) : type === 'image-upload' ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Paste URL..."
+                          value={(challengeModal.data[field] as string) ?? ''}
+                          onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                          className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                        />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                        />
+                        {challengeModal.data.image && (
+                          <div className="mt-2 flex items-center gap-3">
+                            <img src={challengeModal.data.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-primary/40" />
+                            <span className="text-[10px] font-mono text-primary">Image ready</span>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <input
                         type={type}
@@ -966,6 +1018,7 @@ const AdminDashboard = () => {
                     requirements: toCommaList(challengeModal.data.requirements),
                     timeline: toLineList(challengeModal.data.timeline),
                     prizes: toLineList(challengeModal.data.prizes),
+                    image: challengeModal.data.image,
                   }
                   challengeModal.editing ? updateChallengeMutation.mutate(sanitized) : createChallengeMutation.mutate(sanitized)
                 }}

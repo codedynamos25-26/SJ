@@ -46,12 +46,20 @@ router.post('/leetcode', async (req, res): Promise<void> => {
           }
         }
       }
+      userContestRanking(username: $username) {
+        rating
+      }
     }
   `
 
   const response = await fetch('https://leetcode.com/graphql/', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'CodeDynamosBot/1.0',
+      'Referer': 'https://leetcode.com/',
+    },
     body: JSON.stringify({ query, variables: { username: parsed } }),
   })
 
@@ -69,6 +77,7 @@ router.post('/leetcode', async (req, res): Promise<void> => {
           acSubmissionNum?: Array<{ difficulty: string; count: number }>
         }
       }
+      userContestRanking?: { rating?: number }
     }
     errors?: Array<{ message?: string }>
   }
@@ -87,6 +96,7 @@ router.post('/leetcode', async (req, res): Promise<void> => {
   const mediumCount = getCount('Medium')
   const hardCount = getCount('Hard')
   const ranking = userData.profile?.ranking ?? 0
+  const contestRating = payload.data?.userContestRanking?.rating ?? 0
 
   res.json({
     username: userData.username,
@@ -95,14 +105,16 @@ router.post('/leetcode', async (req, res): Promise<void> => {
     mediumCount,
     hardCount,
     ranking,
+    contestRating,
   })
 })
 
 router.put('/profile', async (req, res): Promise<void> => {
-  const { githubUrl, leetcodeProfile, leetcodeSolved, year, semester, track } = req.body as {
+  const { githubUrl, leetcodeProfile, leetcodeSolved, leetcodeRating, year, semester, track } = req.body as {
     githubUrl?: string
     leetcodeProfile?: string
     leetcodeSolved?: number
+    leetcodeRating?: number
     year?: string
     semester?: string
     track?: string
@@ -113,6 +125,7 @@ router.put('/profile', async (req, res): Promise<void> => {
   if (typeof githubUrl === 'string') updates.githubUrl = githubUrl
   if (typeof leetcodeProfile === 'string') updates.leetcodeProfile = parseLeetCodeUsername(leetcodeProfile)
   if (typeof leetcodeSolved === 'number') updates.leetcodeSolved = Math.max(0, Math.floor(leetcodeSolved))
+  if (typeof leetcodeRating === 'number') updates.leetcodeRating = Math.max(0, Math.floor(leetcodeRating))
   if (typeof year === 'string') updates.year = year.trim()
   if (typeof semester === 'string') updates.semester = semester.trim()
   if (typeof track === 'string') updates.track = track.trim()
@@ -129,12 +142,16 @@ router.put('/profile', async (req, res): Promise<void> => {
       return
     }
 
+    const lSolved = updated.leetcodeSolved ?? 0
+    const lRating = updated.leetcodeRating ?? 0
+    const leetcodeScore = Math.floor(lSolved * 0.4 + lRating * 0.6)
+
     res.json({
       id: updated.id,
       email: updated.email,
       name: updated.name,
       role: updated.role,
-      xp: updated.xp,
+      xp: updated.xp + leetcodeScore,
       rank: updated.rank,
       usn: updated.usn,
       department: updated.department,
@@ -143,6 +160,7 @@ router.put('/profile', async (req, res): Promise<void> => {
       githubUrl: updated.githubUrl,
       leetcodeProfile: updated.leetcodeProfile,
       leetcodeSolved: updated.leetcodeSolved,
+      leetcodeRating: updated.leetcodeRating,
       track: updated.track,
     })
   } catch (err: any) {

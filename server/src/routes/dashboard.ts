@@ -19,13 +19,20 @@ router.get('/', authenticate, async (req, res): Promise<void> => {
   const [user] = await db.select().from(users).where(eq(users.id, req.user!.userId))
   if (!user) { res.status(404).json({ error: 'User not found' }); return }
 
-  // Calculate live global rank based on XP
+  // Include LeetCode points in XP (40% solved + 60% rating)
+  const userLeetcodeScore = Math.floor((user.leetcodeSolved ?? 0) * 0.4 + (user.leetcodeRating ?? 0) * 0.6)
+  const combinedXp = user.xp + userLeetcodeScore
+
+  // Calculate live global rank based on combined XP
   const [{ rankCount }] = await db
     .select({ rankCount: sql<number>`count(*) + 1` })
     .from(users)
-    .where(sql`${users.xp} > ${user.xp}`)
+    .where(sql`${users.xp} + FLOOR(COALESCE(${users.leetcodeSolved}, 0) * 0.4 + COALESCE(${users.leetcodeRating}, 0) * 0.6) > ${combinedXp}`)
 
   const liveRank = Number(rankCount)
+
+  // Update user object to pass the combined XP
+  user.xp = combinedXp
 
   // Enrolled events — join through the join table
   const enrolledRows = await db
@@ -52,6 +59,7 @@ router.get('/', authenticate, async (req, res): Promise<void> => {
         status: challenges.status,
         enrollmentXp: challenges.enrollmentXp,
         endsAt: challenges.endsAt,
+        image: challenges.image,
       },
       verified: userActiveChallenges.verified,
       enrolledAt: userActiveChallenges.enrolledAt,

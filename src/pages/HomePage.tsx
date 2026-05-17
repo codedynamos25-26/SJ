@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import PublicLayout from '../components/layouts/PublicLayout'
+import { useAuth } from '../context/AuthContext'
 
 interface Event {
   id: string; type: string; date: string; title: string
@@ -37,6 +38,7 @@ const typeColor: Record<string, string> = {
 
 const HomePage = () => {
   const eventScrollRef = useRef<HTMLDivElement>(null)
+  const { user } = useAuth()
 
   const { data: events = [] } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -87,12 +89,21 @@ const HomePage = () => {
                 The official coding club and technical hub for future architects.
               </p>
               <div className="flex flex-wrap gap-4">
-                <Link
-                  to="/signup"
-                  className="bg-primary px-10 py-5 text-on-primary font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all border border-primary"
-                >
-                  Initialize Access
-                </Link>
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="bg-primary px-10 py-5 text-on-primary font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all border border-primary"
+                  >
+                    Operator Hub
+                  </Link>
+                ) : (
+                  <Link
+                    to="/signup"
+                    className="bg-primary px-10 py-5 text-on-primary font-black text-sm uppercase tracking-[0.2em] hover:brightness-110 transition-all border border-primary"
+                  >
+                    Initialize Access
+                  </Link>
+                )}
                 <Link
                   to="/events"
                   className="bg-transparent border border-white/20 px-10 py-5 text-on-surface font-black text-sm uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
@@ -200,7 +211,7 @@ const HomePage = () => {
                     <p className="text-xs text-on-surface-variant mb-5 line-clamp-2 font-body">{ev.description}</p>
                     <div className="flex items-center justify-between">
                       <span className={`text-[9px] font-mono px-2 py-0.5 border uppercase ${isFull ? 'border-error/40 text-error' : 'border-white/10 text-on-surface-variant'}`}>
-                        {isFull ? 'Full' : `${ev.slots} slots left`}
+                        {isFull ? 'Full' : `${ev.total - ev.slots} / ${ev.total} Participants`}
                       </span>
                       <Link
                         to={`/events/${ev.id}`}

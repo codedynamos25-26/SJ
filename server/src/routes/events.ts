@@ -9,6 +9,9 @@ const checkExpiration = (e: any) => {
   if (e.endsAt && new Date(e.endsAt) < new Date()) {
     return { ...e, status: 'Closed' }
   }
+  if (e.slots === 0 && e.status !== 'Closed') {
+    return { ...e, status: 'Full' }
+  }
   return e
 }
 

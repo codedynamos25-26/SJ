@@ -38,30 +38,18 @@ async function seed() {
   console.log('Seeding users...')
   await db.insert(users).values([
     {
-      id: 'u1', email: 'admin@codedynamos.io', name: 'Aayan Joshi',
-      role: 'admin', passwordHash: bcrypt.hashSync('Admin@1234', 10),
-      usn: '1RV19CS001', department: 'CSE', year: '4th', githubUrl: 'https://github.com/admin',
-      xp: 18540, rank: 1, track: 'Fullstack',
-    },
-    {
-      id: 'u2', email: 'arjun@codedynamos.io', name: 'Arjun Mehta',
-      role: 'member', passwordHash: bcrypt.hashSync('Member@1234', 10),
-      usn: '1RV20IS045', department: 'ISE', year: '3rd', githubUrl: 'https://github.com/arjun',
-      xp: 10900, rank: 4, track: 'Backend',
-    },
-    {
-      id: 'u3', email: 'priya@codedynamos.io', name: 'Priya Sharma',
-      role: 'member', passwordHash: bcrypt.hashSync('Member@1234', 10),
-      usn: '1RV21AI021', department: 'AI', year: '2nd', githubUrl: 'https://github.com/priya',
-      xp: 14820, rank: 2, track: 'ML',
-    },
-    {
-      id: 'u4', email: 'karan@codedynamos.io', name: 'Karan Nair',
-      role: 'member', passwordHash: bcrypt.hashSync('Member@1234', 10),
-      usn: '1RV21CS099', department: 'CSE', year: '2nd', githubUrl: 'https://github.com/karan',
-      xp: 18540, rank: 1, track: 'Security',
-    },
-  ]).onConflictDoNothing()
+      id: 'u1', email: 'admin@codedynamos.io', name: 'Admin',
+      role: 'admin', passwordHash: bcrypt.hashSync('sujaljaya$2025yr', 10),
+      usn: 'ADMIN01', department: 'SuperAdmin', year: 'N/A', githubUrl: 'https://github.com/admin',
+      xp: 100000, rank: 1, track: 'Fullstack',
+    }
+  ]).onConflictDoUpdate({
+    target: users.id,
+    set: {
+      passwordHash: bcrypt.hashSync('sujaljaya$2025yr', 10),
+      role: 'admin'
+    }
+  })
 
   // ── Challenges ─────────────────────────────────────────────────────────────
   console.log('Seeding challenges...')

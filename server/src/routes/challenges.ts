@@ -35,6 +35,7 @@ router.get('/', optionalAuth, async (req, res) => {
       status: challenges.status,
       endsAt: challenges.endsAt,
       externalUrl: challenges.externalUrl,
+      image: challenges.image,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`,
       enrolledByMe: req.user
         ? sql<boolean>`EXISTS(SELECT 1 FROM ${userActiveChallenges} WHERE ${userActiveChallenges.challengeId} = ${challenges.id} AND ${userActiveChallenges.userId} = ${req.user.userId})`
@@ -60,6 +61,7 @@ router.get('/', optionalAuth, async (req, res) => {
       status: challenges.status,
       endsAt: challenges.endsAt,
       externalUrl: challenges.externalUrl,
+      image: challenges.image,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`,
       enrolledByMe: req.user
         ? sql<boolean>`EXISTS(SELECT 1 FROM ${userActiveChallenges} WHERE ${userActiveChallenges.challengeId} = ${challenges.id} AND ${userActiveChallenges.userId} = ${req.user.userId})`
@@ -92,6 +94,7 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
         endsAt: Date | null
         externalUrl: string | null
         participants: number
+        image?: string | null
       }
     | undefined
 
@@ -111,6 +114,7 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
       status: challenges.status,
       endsAt: challenges.endsAt,
       externalUrl: challenges.externalUrl,
+      image: challenges.image,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`
     })
     .from(challenges)
@@ -131,6 +135,7 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
       status: challenges.status,
       endsAt: challenges.endsAt,
       externalUrl: challenges.externalUrl,
+      image: challenges.image,
       participants: sql<number>`cast(count(${userActiveChallenges.userId}) as integer)`
     })
     .from(challenges)

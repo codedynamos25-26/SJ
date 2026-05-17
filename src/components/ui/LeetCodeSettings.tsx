@@ -10,6 +10,7 @@ interface LeetCodeStats {
   mediumCount: number
   hardCount: number
   ranking: number
+  contestRating: number
 }
 
 // Real LeetCode SVG icon
@@ -43,6 +44,7 @@ const LeetCodeSettings = () => {
       await api.put('/user/profile', {
         leetcodeProfile: leetcodeUsername,
         leetcodeSolved: response.data.totalSolved,
+        leetcodeRating: response.data.contestRating,
       })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['leaderboard'] })

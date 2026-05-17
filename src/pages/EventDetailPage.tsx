@@ -291,11 +291,11 @@ const EventDetailPage = () => {
           <div className="lg:sticky lg:top-28 self-start space-y-4">
             <div className="lab-panel p-8 border-t-4" style={{ borderTopColor: event.accent }}>
               <div className="mb-6">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">Seats available</div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">Participants</div>
                 <div className="text-3xl font-black" style={{ color: event.accent }}>
-                  {isFull ? 'Full' : `${event.slots}`}
+                  {event.total - event.slots}
                 </div>
-                {!isFull && <div className="text-[10px] font-mono text-on-surface-variant">of {event.total} total</div>}
+                <div className="text-[10px] font-mono text-on-surface-variant">of {event.total} total</div>
               </div>
 
               <div className="w-full bg-white/5 h-1 mb-6">
@@ -324,21 +324,21 @@ const EventDetailPage = () => {
                   : 'Register!'}
               </button>
 
-              {event.enrolledByMe && event.externalUrl && (
+              {event.externalUrl && (
                 <a
-                  href={ensureAbsoluteUrl(event.externalUrl)}
-                  target="_blank"
+                  href={event.status === 'Closed' ? undefined : ensureAbsoluteUrl(event.externalUrl)}
+                  target={event.status === 'Closed' ? undefined : "_blank"}
                   rel="noopener noreferrer"
                   onMouseEnter={() => setIsExtHovered(true)}
                   onMouseLeave={() => setIsExtHovered(false)}
-                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block`}
-                  style={{
+                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${event.status === 'Closed' ? 'opacity-40 cursor-not-allowed pointer-events-none border-white/10 text-on-surface-variant' : ''}`}
+                  style={event.status === 'Closed' ? {} : {
                     borderColor: event.accent,
                     color: isExtHovered ? '#000000' : event.accent,
                     backgroundColor: isExtHovered ? event.accent : 'transparent'
                   }}
                 >
-                  JOIN ON {event.platform?.toUpperCase() || 'EXTERNAL PLATFORM'}
+                  {event.status === 'Closed' ? 'EVENT CLOSED' : `JOIN ON ${event.platform?.toUpperCase() || 'EXTERNAL PLATFORM'}`}
                 </a>
               )}
 

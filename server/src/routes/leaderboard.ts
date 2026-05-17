@@ -24,10 +24,21 @@ router.get('/', async (_req, res) => {
       streak:       sql<number>`0`,           // placeholder
     })
     .from(users)
-    .orderBy(desc(users.xp))
 
-  // Assign badge based on XP
-  const withBadge = rows.map((u, i) => ({
+  // Integrate LeetCode calculation (40% solved Q, 60% contest rating) directly into overall leaderboard XP
+  const mapped = rows.map((u) => {
+    const lSolved = u.leetcodeSolved ?? 0
+    const lRating = u.leetcodeRating ?? 0
+    const leetcodeScore = Math.floor(lSolved * 0.4 + lRating * 0.6)
+    const overallXp = u.xp + leetcodeScore
+    return { ...u, xp: overallXp }
+  })
+
+  // Sort descending by combined XP
+  mapped.sort((a, b) => b.xp - a.xp)
+
+  // Assign badge based on overall combined XP
+  const withBadge = mapped.map((u, i) => ({
     ...u,
     position: i + 1,
     badge: u.xp >= 15000 ? 'Legendary' : u.xp >= 10000 ? 'Architect' : u.xp >= 7000 ? 'Elite' : u.xp >= 4000 ? 'Expert' : u.xp >= 1000 ? 'Senior' : 'Member',

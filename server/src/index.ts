@@ -19,8 +19,8 @@ import adminRouter from './routes/admin'
 import announcementsRouter from './routes/announcements'
 import userRouter from './routes/user'
 import statsRouter from './routes/stats'
-import { db } from './db'
-import { sql } from 'drizzle-orm'
+import { db, users } from './db'
+import { eq, isNotNull, sql } from 'drizzle-orm'
 
 const app = express()
 const PORT = process.env.PORT ?? 4000
@@ -60,6 +60,69 @@ app.use('/api/stats', statsRouter)
 // 404 fallback
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
 
+const fetchLeetCodeStats = async (username: string) => {
+  const query = `
+    query userPublicProfile($username: String!) {
+      matchedUser(username: $username) {
+        username
+        submitStatsGlobal {
+          acSubmissionNum { difficulty count submissions }
+        }
+      }
+      userContestRanking(username: $username) { rating }
+    }
+  `
+
+  const response = await fetch('https://leetcode.com/graphql/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'CodeDynamosBot/1.0',
+      'Referer': 'https://leetcode.com/',
+    },
+    body: JSON.stringify({ query, variables: { username } }),
+  })
+
+  if (!response.ok) throw new Error(`LeetCode fetch failed: ${response.status}`)
+  const payload = await response.json() as {
+    data?: {
+      matchedUser?: {
+        submitStatsGlobal?: { acSubmissionNum?: Array<{ difficulty: string; count: number }> }
+      }
+      userContestRanking?: { rating?: number }
+    }
+  }
+
+  const stats = payload.data?.matchedUser?.submitStatsGlobal?.acSubmissionNum ?? []
+  const totalSolved = stats.find((s) => s.difficulty === 'All')?.count ?? 0
+  const contestRating = payload.data?.userContestRanking?.rating ?? 0
+
+  return { totalSolved, contestRating }
+}
+
+const refreshLeetCodeProfiles = async () => {
+  const rows = await db
+    .select({ id: users.id, leetcodeProfile: users.leetcodeProfile })
+    .from(users)
+    .where(isNotNull(users.leetcodeProfile))
+
+  for (const row of rows) {
+    try {
+      const { totalSolved, contestRating } = await fetchLeetCodeStats(row.leetcodeProfile as string)
+      await db
+        .update(users)
+        .set({
+          leetcodeSolved: Math.max(0, Math.floor(totalSolved)),
+          leetcodeRating: Math.max(0, Math.floor(contestRating)),
+        })
+        .where(eq(users.id, row.id))
+    } catch (err) {
+      console.error(`LeetCode refresh failed for ${row.leetcodeProfile}:`, err)
+    }
+  }
+}
+
 app.listen(PORT, async () => {
   // Auto-migration for production DB stability
   try {
@@ -90,4 +153,10 @@ app.listen(PORT, async () => {
   console.log(`   Health: http://localhost:${PORT}/health`)
   console.log(`   Auth:   POST /api/auth/login | POST /api/auth/signup`)
   console.log(`   Admin:  GET  /api/admin/stats  (requires admin token)\n`)
+
+  // Refresh LeetCode profiles on startup and every 48 hours
+  refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
+  setInterval(() => {
+    refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
+  }, 1000 * 60 * 60 * 48)
 })

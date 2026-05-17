@@ -77,6 +77,7 @@ export const challenges = pgTable('challenges', {
   timeline: text('timeline').array().notNull().default([]),
   prizes: text('prizes').array().notNull().default([]),
   status: text('status').notNull().default('Open'), // Open | Closed
+  image: text('image'),
   enrollmentXp: integer('enrollment_xp').notNull().default(0),
   externalUrl: text('external_url'),
   endsAt: timestamp('ends_at'),

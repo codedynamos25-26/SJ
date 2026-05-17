@@ -247,18 +247,18 @@ function EventCard({ ev, user, handleRsvp, rsvpMutation, onFullscreen }: { ev: E
         </Link>
         <p className="text-sm text-on-surface-variant mb-6 flex-1 font-body leading-relaxed">{ev.description}</p>
 
-        {/* Slots */}
+        {/* Participants */}
         <div className="mb-6">
           <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mb-2">
-            <span>SLOTS AVAILABLE</span>
+            <span>PARTICIPANTS</span>
             <span className={isFull ? 'text-error' : 'text-primary'}>
-              {isFull ? 'FULL' : `${ev.slots} / ${ev.total}`}
+              {isFull ? 'FULL' : `${ev.total - ev.slots} / ${ev.total}`}
             </span>
           </div>
           <div className="w-full bg-white/5 h-0.5">
             <div
               className={`h-full transition-all ${isFull ? 'bg-error' : 'bg-primary'}`}
-              style={{ width: `${(ev.slots / ev.total) * 100}%` }}
+              style={{ width: `${((ev.total - ev.slots) / ev.total) * 100}%` }}
             />
           </div>
         </div>

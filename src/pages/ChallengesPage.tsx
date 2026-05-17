@@ -29,6 +29,7 @@ interface Challenge {
   externalUrl?: string | null
   participants: number
   enrolledByMe: boolean
+  image?: string | null
 }
 
 const diffStyle: Record<string, { text: string; border: string; bg: string; icon: string }> = {
@@ -46,6 +47,7 @@ const ChallengesPage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [lightbox, setLightbox] = useState<{ img: string; label: string; tag: string; year: string } | null>(null)
 
   const { data: challenges = [], isLoading } = useQuery({
     queryKey: ['challenges'],
@@ -87,7 +89,7 @@ const ChallengesPage = () => {
             ACTIVE ALGORITHMIC SPRINTS
           </div>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-black italic uppercase tracking-tighter mb-4 font-['Orbitron']">
-            Challenge Dec
+            Challenges
           </h1>
           <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mb-5" />
           <p className="text-on-surface-variant font-body max-w-xl text-sm md:text-base">
@@ -147,6 +149,7 @@ const ChallengesPage = () => {
                   user={user}
                   handleEnroll={handleEnroll}
                   enrollMutation={enrollMutation}
+                  onFullscreen={() => setLightbox({ img: c.image!, label: c.title, tag: 'Challenge', year: c.difficulty })}
                 />
               ))}
               {!isLoading && filtered.length === 0 && (
@@ -159,6 +162,27 @@ const ChallengesPage = () => {
           )}
         </div>
       </section>
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-6 right-6 w-10 h-10 border border-white/20 flex items-center justify-center text-white hover:border-primary hover:text-primary transition-colors"
+            onClick={() => setLightbox(null)}
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+          <div className="max-w-6xl w-full" onClick={(e) => e.stopPropagation()}>
+            <img src={lightbox.img} alt={lightbox.label} className="w-full max-h-[85vh] object-contain" />
+            <div className="mt-4 flex items-center gap-4">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-primary">{lightbox.tag} / {lightbox.year}</span>
+              <span className="text-white font-headline font-bold uppercase text-sm">{lightbox.label}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </PublicLayout>
   )
 }
@@ -167,43 +191,68 @@ function ChallengeCard({
   c,
   user,
   handleEnroll,
-  enrollMutation
+  enrollMutation,
+  onFullscreen
 }: {
   c: Challenge
   user: any
   handleEnroll: (id: string) => void
   enrollMutation: any
+  onFullscreen: () => void
 }) {
   const style = diffStyle[c.difficulty] ?? diffStyle['Medium']
   const isClosed = c.status === 'Closed'
   const isPending = enrollMutation.isPending && enrollMutation.variables === c.id
+
   return (
-    <div className={`lab-panel group flex flex-col relative min-h-[420px] border-t-4 ${style.border} transition-all duration-500 ${isClosed ? 'grayscale opacity-80 hover:grayscale-0 hover:opacity-100' : ''}`}>
+    <div className={`lab-panel group flex flex-col relative min-h-[450px] border-t-4 ${style.border} transition-all duration-500 ${isClosed ? 'grayscale opacity-80 hover:grayscale-0 hover:opacity-100' : ''}`}>
       {/* Header Area */}
-      <div className="p-6 border-b border-white/5 bg-black/40 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className={`material-symbols-outlined text-xl ${style.text}`}>{style.icon}</span>
-          <span className={`text-[10px] font-mono font-black uppercase tracking-widest ${style.text}`}>
-            {c.difficulty}
-          </span>
+      <div className="h-48 relative overflow-hidden transition-all duration-500 bg-black/40 border-b border-white/5">
+        {c.image ? (
+          <div className="w-full h-full relative group/img">
+            <img 
+              src={c.image} 
+              alt={c.title} 
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+            />
+            {/* Full Image Button */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); onFullscreen(); }}
+              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all border bg-black/60 text-white/40 border-white/10 hover:border-primary hover:text-primary hover:scale-110"
+              title="View Challenge Photo"
+            >
+              <span className="material-symbols-outlined text-sm">open_in_full</span>
+            </button>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+          </div>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-[#0a0a0a] p-6 font-mono overflow-hidden">
+            <span className={`material-symbols-outlined text-4xl mb-2 group-hover:scale-110 transition-transform duration-500 ${style.text}`}>
+              {style.icon}
+            </span>
+            <div className="text-[7px] text-white/20 uppercase tracking-[0.4em] space-y-1 w-full text-center opacity-50">
+              <div>CHALLENGE_NODE_{c.id.slice(0, 4).toUpperCase()}</div>
+              <div className={style.text}>DIFF: {c.difficulty.toUpperCase()}</div>
+            </div>
+          </div>
+        )}
+
+        <div className={`absolute top-0 right-0 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest ${style.bg} ${style.bg === 'bg-white' ? 'text-black' : 'text-on-primary'}`}>
+          {c.difficulty}
         </div>
-        <span className={`text-[9px] font-mono px-2 py-0.5 border uppercase ${c.status === 'Open' ? 'border-tertiary-fixed/40 text-tertiary-fixed' : 'border-error/40 text-error'}`}>
-          {c.status}
-        </span>
       </div>
 
       {/* Content Area */}
-      <div className="p-8 flex flex-col flex-1">
-        <div className="flex-1">
-          <Link to={`/challenges/${c.id}`} className="after:absolute after:inset-0">
-            <h3 className="text-xl font-black uppercase mb-3 leading-tight group-hover:text-primary transition-colors">
-              {c.title}
-            </h3>
-          </Link>
-          <p className="text-sm text-on-surface-variant mb-6 line-clamp-3 font-body leading-relaxed">
-            {c.description}
-          </p>
+      <div className="p-8 flex flex-col flex-1 border-t border-white/5">
+        <div className={`text-[10px] font-mono font-bold tracking-[0.3em] mb-3 ${style.text}`}>
+          {c.status.toUpperCase()} · XP: +{c.xp.toLocaleString()} · POOL: ₹{c.pool.toLocaleString()}
         </div>
+        <Link to={`/challenges/${c.id}`} className="after:absolute after:inset-0">
+          <h3 className="text-xl font-black uppercase mb-3 leading-tight group-hover:text-primary transition-colors">
+            {c.title}
+          </h3>
+        </Link>
+        <p className="text-sm text-on-surface-variant mb-6 line-clamp-3 font-body leading-relaxed">{c.description}</p>
 
         {/* Challenge Specs */}
         <div className="grid grid-cols-2 gap-4 mb-6 border-y border-white/5 py-4">
@@ -216,8 +265,6 @@ function ChallengeCard({
             <div className="text-sm font-black font-mono text-white">₹{c.pool.toLocaleString()}</div>
           </div>
         </div>
-
-
 
         {/* Action Button */}
         <button

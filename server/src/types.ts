@@ -66,6 +66,7 @@ export interface Challenge {
   enrollmentXp: number
   endsAt?: string
   externalUrl?: string
+  image?: string
 }
 
 export interface TeamMember {

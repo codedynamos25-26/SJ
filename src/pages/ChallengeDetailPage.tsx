@@ -13,6 +13,7 @@ interface ChallengeDetail {
   prizes?: string[]
   status: string
   externalUrl?: string
+  image?: string | null
   winners?: Array<{ id: string; name: string; position: number; awardXp: number }>
 }
 
@@ -134,6 +135,8 @@ const ChallengeDetailPage = () => {
           </Link>
         </div>
       </div>
+
+
 
       {/* Hero */}
       <section className={`py-16 px-8 bg-[#0A0A0A] border-b border-white/5 border-t-4 ${style.border}`}>
@@ -271,14 +274,14 @@ const ChallengeDetailPage = () => {
                   : 'Initialize Sprint'}
               </button>
 
-              {challenge.enrolledByMe && challenge.externalUrl && (
+              {challenge.externalUrl && (
                 <a
-                  href={ensureAbsoluteUrl(challenge.externalUrl)}
-                  target="_blank"
+                  href={challenge.status === 'Closed' ? undefined : ensureAbsoluteUrl(challenge.externalUrl)}
+                  target={challenge.status === 'Closed' ? undefined : "_blank"}
                   rel="noopener noreferrer"
-                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${style.text} ${style.border} hover:${style.bg} hover:text-on-primary`}
+                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${challenge.status === 'Closed' ? 'opacity-40 cursor-not-allowed pointer-events-none border-white/10 text-on-surface-variant' : `${style.text} ${style.border} hover:${style.bg} hover:text-on-primary`}`}
                 >
-                  GO TO EXTERNAL CONTEST
+                  {challenge.status === 'Closed' ? 'CONTEST CLOSED' : 'GO TO EXTERNAL CONTEST'}
                 </a>
               )}
 
@@ -341,6 +344,8 @@ const ChallengeDetailPage = () => {
           </div>
         </div>
       </section>
+
+
     </PublicLayout>
   )
 }
