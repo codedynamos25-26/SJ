@@ -19,6 +19,7 @@ const checkExpiration = (e: any) => {
 router.get('/', optionalAuth, async (req, res) => {
   const allEvents = await db.select().from(events)
   const processed = allEvents.map(checkExpiration)
+  processed.sort((a, b) => b.id.localeCompare(a.id))
   
   if (req.user) {
     const enrolledIds = await db

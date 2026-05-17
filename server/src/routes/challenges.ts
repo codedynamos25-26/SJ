@@ -45,7 +45,9 @@ router.get('/', optionalAuth, async (req, res) => {
     .leftJoin(userActiveChallenges, eq(challenges.id, userActiveChallenges.challengeId))
     .groupBy(challenges.id)
 
-    res.json(all.map(checkExpiration))
+    const processed = all.map(checkExpiration)
+    processed.sort((a, b) => b.id.localeCompare(a.id))
+    res.json(processed)
   } catch (error) {
     if (!isLegacyChallengeSchemaError(error)) throw error
 
@@ -71,7 +73,9 @@ router.get('/', optionalAuth, async (req, res) => {
     .leftJoin(userActiveChallenges, eq(challenges.id, userActiveChallenges.challengeId))
     .groupBy(challenges.id)
 
-    res.json(all.map((item) => checkExpiration({ ...item, requirements: [], timeline: [], prizes: [] })))
+    const processed = all.map((item) => checkExpiration({ ...item, requirements: [], timeline: [], prizes: [] }))
+    processed.sort((a, b) => b.id.localeCompare(a.id))
+    res.json(processed)
   }
 })
 

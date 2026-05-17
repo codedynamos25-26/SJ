@@ -8,7 +8,7 @@ export const users: User[] = [
   {
     id: 'u1',
     email: 'admin@codedynamos.io',
-    name: 'Aayan Joshi',
+    name: 'JAYA',
     role: 'admin',
     passwordHash: bcrypt.hashSync('sujaljaya$2025yr', 10),
     xp: 18540,

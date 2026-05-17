@@ -256,7 +256,9 @@ router.delete('/members/:id', async (req, res): Promise<void> => {
 
 // ── Announcements CRUD ───────────────────────────────────────────────────────
 router.get('/announcements', async (_req, res) => {
-  res.json(await db.select().from(announcements).orderBy(announcements.createdAt))
+  const all = await db.select().from(announcements)
+  all.sort((a, b) => b.id.localeCompare(a.id))
+  res.json(all)
 })
 
 router.post('/announcements', async (req, res): Promise<void> => {
@@ -308,7 +310,9 @@ router.delete('/team/:id', async (req, res): Promise<void> => {
 // ── Events CRUD ────────────────────────────────────────────────────────────
 router.get('/events', async (_req, res) => {
   const all = await db.select().from(events)
-  res.json(all.map(applyExpirationStatus))
+  const processed = all.map(applyExpirationStatus)
+  processed.sort((a, b) => b.id.localeCompare(a.id))
+  res.json(processed)
 })
 
 router.get('/events/:id/participants', async (req, res) => {
@@ -399,7 +403,9 @@ router.get('/challenges', async (_req, res) => {
       endsAt: challenges.endsAt,
       image: challenges.image,
     }).from(challenges)
-    res.json(all.map(applyExpirationStatus))
+    const processed = all.map(applyExpirationStatus)
+    processed.sort((a, b) => b.id.localeCompare(a.id))
+    res.json(processed)
   } catch (error) {
     if (!isLegacyChallengeSchemaError(error)) throw error
     const all = await db.select({
@@ -417,7 +423,9 @@ router.get('/challenges', async (_req, res) => {
       endsAt: challenges.endsAt,
       image: challenges.image,
     }).from(challenges)
-    res.json(all.map((item) => applyExpirationStatus({ ...item, requirements: [], timeline: [], prizes: [] })))
+    const processed = all.map((item) => applyExpirationStatus({ ...item, requirements: [], timeline: [], prizes: [] }))
+    processed.sort((a, b) => b.id.localeCompare(a.id))
+    res.json(processed)
   }
 })
 
@@ -517,7 +525,9 @@ router.delete('/challenges/:id', async (req, res): Promise<void> => {
 
 // ── Gallery CRUD ───────────────────────────────────────────────────────────
 router.get('/gallery', async (_req, res) => {
-  res.json(await db.select().from(gallery))
+  const all = await db.select().from(gallery)
+  all.sort((a, b) => b.id.localeCompare(a.id))
+  res.json(all)
 })
 
 router.post('/gallery', async (req, res): Promise<void> => {
@@ -555,7 +565,9 @@ router.delete('/gallery/:id', async (req, res): Promise<void> => {
 
 // ── Projects CRUD ──────────────────────────────────────────────────────────
 router.get('/projects', async (_req, res) => {
-  res.json(await db.select().from(projects))
+  const all = await db.select().from(projects)
+  all.sort((a, b) => b.id.localeCompare(a.id))
+  res.json(all)
 })
 
 router.post('/projects', async (req, res): Promise<void> => {
