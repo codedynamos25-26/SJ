@@ -105,7 +105,6 @@ const ChallengeDetailPage = () => {
   }
 
   const isPending = enrollMutation.isPending || unenrollMutation.isPending
-  const completionPct = challenge.participants > 0 ? Math.round((challenge.completions / challenge.participants) * 100) : 0
   const style = diffStyle[challenge.difficulty] ?? diffStyle['Medium']
   const timeline = (challenge.timeline && challenge.timeline.length > 0 ? challenge.timeline : defaultTimeline)
     .map((item) => {

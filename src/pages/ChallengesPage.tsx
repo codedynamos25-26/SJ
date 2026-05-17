@@ -177,8 +177,6 @@ function ChallengeCard({
   const style = diffStyle[c.difficulty] ?? diffStyle['Medium']
   const isClosed = c.status === 'Closed'
   const isPending = enrollMutation.isPending && enrollMutation.variables === c.id
-  const completionPct = c.participants > 0 ? Math.round((c.completions / c.participants) * 100) : 0
-
   return (
     <div className={`lab-panel group flex flex-col relative min-h-[420px] border-t-4 ${style.border} transition-all duration-500 ${isClosed ? 'grayscale opacity-80 hover:grayscale-0 hover:opacity-100' : ''}`}>
       {/* Header Area */}
