@@ -6,82 +6,57 @@ import AnimatedDropdown from '../components/ui/AnimatedDropdown'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 
-const DIFFS = ['All', 'Legendary', 'Hard', 'Medium', 'Easy'] as const
-type Diff = typeof DIFFS[number]
-const PHASE_FILTERS = ['All', 'Active', 'Upcoming', 'Finished'] as const
-type PhaseFilter = typeof PHASE_FILTERS[number]
+const DIFFICULTIES = ['All', 'Easy', 'Medium', 'Hard', 'Legendary'] as const
+type Difficulty = typeof DIFFICULTIES[number]
+
+const STATUS_FILTERS = ['All', 'Open', 'Closed'] as const
+type StatusFilter = typeof STATUS_FILTERS[number]
 
 interface Challenge {
-  id: string; title: string; difficulty: string; xp: number
-  pool: number; completions: number; participants: number
-  tags: string[]; description: string; status: string; enrolledByMe?: boolean
-  endsAt?: string | null
+  id: string
+  title: string
+  difficulty: string
+  xp: number
+  pool: number
+  completions: number
+  tags: string[]
+  description: string
+  requirements?: string[]
+  timeline?: string[]
+  prizes?: string[]
+  status: string
+  endsAt: string | null
+  externalUrl?: string | null
+  participants: number
+  enrolledByMe: boolean
 }
 
-const diffStyle: Record<string, string> = {
-  Legendary: 'text-primary border-primary',
-  Hard: 'text-error border-error',
-  Medium: 'text-secondary border-secondary',
-  Easy: 'text-tertiary-fixed border-tertiary-fixed',
-}
-
-const diffBorder: Record<string, string> = {
-  Legendary: 'border-t-2 border-t-primary',
-  Hard: 'border-t-2 border-t-error',
-  Medium: 'border-t-2 border-t-secondary',
-  Easy: 'border-t-2 border-t-tertiary-fixed',
-}
-
-const diffBg: Record<string, string> = {
-  Legendary: 'bg-primary',
-  Hard: 'bg-error',
-  Medium: 'bg-secondary',
-  Easy: 'bg-tertiary-fixed',
-}
-
-const iconMap: Record<string, string> = {
-  Legendary: 'military_tech',
-  Hard: 'terminal',
-  Medium: 'memory',
-  Easy: 'code',
+const diffStyle: Record<string, { text: string; border: string; bg: string; icon: string }> = {
+  Legendary: { text: 'text-primary', border: 'border-primary', bg: 'bg-primary', icon: 'military_tech' },
+  Hard:      { text: 'text-error',   border: 'border-error',   bg: 'bg-error',   icon: 'terminal' },
+  Medium:    { text: 'text-secondary', border: 'border-secondary', bg: 'bg-secondary', icon: 'memory' },
+  Easy:      { text: 'text-tertiary-fixed', border: 'border-tertiary-fixed', bg: 'bg-tertiary-fixed', icon: 'code' },
 }
 
 const fetchChallenges = () => api.get<Challenge[]>('/challenges').then((r) => r.data)
 
-const parseDate = (value?: string | null) => {
-  if (!value) return null
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-const isFinishedChallenge = (c: Challenge) => {
-  const status = c.status.toLowerCase()
-  if (status === 'closed' || status === 'finished') return true
-  const end = parseDate(c.endsAt)
-  return !!(end && end.getTime() < Date.now())
-}
-
-const isUpcomingChallenge = (c: Challenge) => {
-  if (isFinishedChallenge(c)) return false
-  const status = c.status.toLowerCase()
-  if (status === 'upcoming') return true
-  const end = parseDate(c.endsAt)
-  return !!(end && end.getTime() > Date.now() && c.participants === 0)
-}
-
 const ChallengesPage = () => {
-  const [filter, setFilter] = useState<Diff>('All')
-  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('All')
+  const [difficultyFilter, setDifficultyFilter] = useState<Difficulty>('All')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: challenges = [], isLoading } = useQuery({ queryKey: ['challenges'], queryFn: fetchChallenges })
+  const { data: challenges = [], isLoading } = useQuery({
+    queryKey: ['challenges'],
+    queryFn: fetchChallenges
+  })
 
   const enrollMutation = useMutation({
     mutationFn: (challengeId: string) => api.post(`/challenges/${challengeId}/enroll`),
-    onSuccess: () => {
+    onSuccess: (_, challengeId) => {
       queryClient.invalidateQueries({ queryKey: ['challenges'] })
+      queryClient.invalidateQueries({ queryKey: ['challenge', challengeId] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
     },
@@ -96,62 +71,50 @@ const ChallengesPage = () => {
   }
 
   const filtered = challenges.filter((c) => {
-    const diffMatch = filter === 'All' || c.difficulty === filter
+    const diffMatch = difficultyFilter === 'All' || c.difficulty === difficultyFilter
     if (!diffMatch) return false
 
-    if (phaseFilter === 'All') return true
-    if (phaseFilter === 'Finished') return isFinishedChallenge(c)
-    if (phaseFilter === 'Upcoming') return isUpcomingChallenge(c)
-    return !isFinishedChallenge(c) && !isUpcomingChallenge(c)
+    if (statusFilter === 'All') return true
+    return c.status === statusFilter
   })
-
-  const totalPool = challenges.reduce((sum, c) => sum + c.pool, 0)
-  const totalParticipants = challenges.reduce((sum, c) => sum + c.participants, 0)
 
   return (
     <PublicLayout>
-      {/* ... header and filters ... */}
-      <section className="py-10 px-8 bg-[#0A0A0A] border-b border-white/5">
+      {/* Header */}
+      <section className="py-8 md:py-10 px-4 md:px-8 bg-[#0A0A0A] border-b border-white/5">
         <div className="max-w-[1440px] mx-auto">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="h-px flex-1 bg-gradient-to-r from-primary/20 via-primary/50 to-primary/20" />
-            <span className="text-[11px] font-black uppercase tracking-[0.5em] text-primary whitespace-nowrap font-['Space_Mono']">ACTIVE OPERATIONS</span>
-            <div className="h-px flex-1 bg-gradient-to-r from-primary/20 via-primary/50 to-primary/20" />
+          <div className="text-[11px] font-black tracking-[0.5em] text-primary uppercase mb-3 font-['Space_Mono']">
+            ACTIVE ALGORITHMIC SPRINTS
           </div>
-          <h1 className="text-6xl md:text-7xl font-black italic uppercase tracking-tighter mb-6 font-['Orbitron']">Current Sprints</h1>
-          <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mb-8" />
-          <div className="flex flex-wrap gap-8 md:gap-16">
-            <div>
-              <div className="text-4xl md:text-5xl font-black text-primary mb-1">{challenges.length}</div>
-              <div className="text-[10px] font-black uppercase tracking-[0.3em] text-on-surface-variant">Active Sprints</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-black text-white mb-1">{totalParticipants.toLocaleString()}</div>
-              <div className="text-[10px] font-black uppercase tracking-[0.3em] text-on-surface-variant">Participants</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-black text-secondary mb-1">₹{(totalPool / 1000).toFixed(0)}K</div>
-              <div className="text-[10px] font-black uppercase tracking-[0.3em] text-on-surface-variant">Prize Pool</div>
-            </div>
-          </div>
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black italic uppercase tracking-tighter mb-4 font-['Orbitron']">
+            Challenge Dec
+          </h1>
+          <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mb-5" />
+          <p className="text-on-surface-variant font-body max-w-xl text-sm md:text-base">
+            Prove your engineering dominance. Participate in sandbox engineering tasks, speed coding tournaments, and structural design sprints.
+          </p>
         </div>
       </section>
 
-      <section className="sticky top-[72px] z-30 bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/5 px-8 py-4">
-        <div className="max-w-[1440px] mx-auto space-y-3">
-          <AnimatedDropdown
-            label="Status"
-            value={phaseFilter}
-            options={PHASE_FILTERS}
-            onChange={setPhaseFilter}
-          />
-          <div className="flex gap-3 overflow-x-auto no-scrollbar">
-            {DIFFS.map((d) => (
+      {/* Filters */}
+      <section className="sticky top-[100px] z-30 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-white/5 px-4 md:px-8 py-3">
+        <div className="max-w-[1440px] mx-auto space-y-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <AnimatedDropdown
+              label="Status"
+              value={statusFilter}
+              options={STATUS_FILTERS}
+              onChange={setStatusFilter}
+            />
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pt-1">
+            {DIFFICULTIES.map((d) => (
               <button
                 key={d}
-                onClick={() => setFilter(d)}
+                onClick={() => setDifficultyFilter(d)}
                 className={`px-5 py-2 text-[10px] font-mono font-black uppercase tracking-[0.2em] whitespace-nowrap transition-all ${
-                  filter === d
+                  difficultyFilter === d
                     ? 'bg-primary text-on-primary'
                     : 'border border-white/10 text-on-surface-variant hover:border-primary/50 hover:text-white'
                 }`}
@@ -169,92 +132,118 @@ const ChallengesPage = () => {
       </section>
 
       {/* Challenges Grid */}
-      <section className="py-16 px-8">
+      <section className="py-10 md:py-16 px-4 md:px-8">
         <div className="max-w-[1440px] mx-auto">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <span className="font-pixel text-primary text-sm animate-pulse">LOADING SPRINTS...</span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filtered.map((ch) => {
-                const isEnrolled = !!ch.enrolledByMe
-                const isFinished = isFinishedChallenge(ch)
-                const isPending = enrollMutation.isPending && enrollMutation.variables === ch.id
-                const completionPct = ch.participants > 0 ? Math.min(Math.round((ch.completions / ch.participants) * 100), 100) : 0
-
-                return (
-                  <div key={ch.id} className={`lab-panel p-8 flex flex-col group relative transition-all duration-500 ${diffBorder[ch.difficulty]} ${isFinished ? 'grayscale opacity-80 hover:grayscale-0 hover:opacity-100' : ''}`}>
-                    <div className="flex justify-between items-start mb-8">
-                      <span className="material-symbols-outlined text-3xl text-on-surface-variant group-hover:text-primary transition-colors">
-                        {iconMap[ch.difficulty] ?? 'terminal'}
-                      </span>
-                      <span className={`text-[8px] font-mono font-black px-2 py-0.5 uppercase tracking-tighter border ${diffStyle[ch.difficulty]}`}>
-                        {ch.difficulty}
-                      </span>
-                    </div>
-                    <Link to={`/challenges/${ch.id}`} className="after:absolute after:inset-0">
-                      <h3 className="text-xl font-black uppercase mb-4 italic leading-tight group-hover:text-primary transition-colors">
-                        {ch.title}
-                      </h3>
-                    </Link>
-                    <p className="text-xs text-on-surface-variant mb-4 font-body leading-relaxed flex-1">{ch.description}</p>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1 mb-6">
-                      {ch.tags.map((tag) => (
-                        <span key={tag} className="text-[8px] font-mono px-1.5 py-0.5 border border-white/10 text-on-surface-variant">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-[10px] font-mono text-on-surface-variant">
-                        <span>POOL: <span className="text-white">₹{ch.pool.toLocaleString()}</span></span>
-                        <span>{ch.participants} ops</span>
-                      </div>
-                      <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mb-1">
-                        <span>COMPLETION</span>
-                        <span className="text-white">{completionPct}%</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-1 overflow-hidden rounded-full">
-                        <div 
-                          className={`h-full transition-all duration-1000 ease-out ${diffBg[ch.difficulty]}`} 
-                          style={{ width: `${completionPct}%` }} 
-                        />
-                      </div>
-                      
-                      <div className="flex gap-2 mt-4 relative z-10">
-                        <button
-                          onClick={() => handleEnroll(ch.id)}
-                          disabled={isPending || isEnrolled || isFinished}
-                          className={`flex-1 py-3 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all disabled:opacity-50 ${
-                            isEnrolled || isFinished
-                              ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
-                              : `${diffStyle[ch.difficulty]} hover:bg-primary hover:text-on-primary hover:border-primary`
-                          }`}
-                        >
-                          {isPending
-                            ? 'Processing...'
-                            : isEnrolled
-                            ? 'Active'
-                            : isFinished
-                            ? 'Sprint Finished'
-                            : user
-                            ? 'Initialize'
-                            : 'Login to Join'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filtered.map((c) => (
+                <ChallengeCard
+                  key={c.id}
+                  c={c}
+                  user={user}
+                  handleEnroll={handleEnroll}
+                  enrollMutation={enrollMutation}
+                />
+              ))}
+              {!isLoading && filtered.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center h-48 gap-3 text-center">
+                  <span className="material-symbols-outlined text-4xl text-white/20">terminal_off</span>
+                  <p className="font-mono text-on-surface-variant text-sm">No active sprints matching filter query.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
       </section>
     </PublicLayout>
+  )
+}
+
+function ChallengeCard({
+  c,
+  user,
+  handleEnroll,
+  enrollMutation
+}: {
+  c: Challenge
+  user: any
+  handleEnroll: (id: string) => void
+  enrollMutation: any
+}) {
+  const style = diffStyle[c.difficulty] ?? diffStyle['Medium']
+  const isClosed = c.status === 'Closed'
+  const isPending = enrollMutation.isPending && enrollMutation.variables === c.id
+  const completionPct = c.participants > 0 ? Math.round((c.completions / c.participants) * 100) : 0
+
+  return (
+    <div className={`lab-panel group flex flex-col relative min-h-[420px] border-t-4 ${style.border} transition-all duration-500 ${isClosed ? 'grayscale opacity-80 hover:grayscale-0 hover:opacity-100' : ''}`}>
+      {/* Header Area */}
+      <div className="p-6 border-b border-white/5 bg-black/40 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className={`material-symbols-outlined text-xl ${style.text}`}>{style.icon}</span>
+          <span className={`text-[10px] font-mono font-black uppercase tracking-widest ${style.text}`}>
+            {c.difficulty}
+          </span>
+        </div>
+        <span className={`text-[9px] font-mono px-2 py-0.5 border uppercase ${c.status === 'Open' ? 'border-tertiary-fixed/40 text-tertiary-fixed' : 'border-error/40 text-error'}`}>
+          {c.status}
+        </span>
+      </div>
+
+      {/* Content Area */}
+      <div className="p-8 flex flex-col flex-1">
+        <div className="flex-1">
+          <Link to={`/challenges/${c.id}`} className="after:absolute after:inset-0">
+            <h3 className="text-xl font-black uppercase mb-3 leading-tight group-hover:text-primary transition-colors">
+              {c.title}
+            </h3>
+          </Link>
+          <p className="text-sm text-on-surface-variant mb-6 line-clamp-3 font-body leading-relaxed">
+            {c.description}
+          </p>
+        </div>
+
+        {/* Challenge Specs */}
+        <div className="grid grid-cols-2 gap-4 mb-6 border-y border-white/5 py-4">
+          <div>
+            <div className="text-[9px] font-mono text-on-surface-variant uppercase tracking-widest">XP Reward</div>
+            <div className={`text-sm font-black font-mono ${style.text}`}>+{c.xp.toLocaleString()}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-mono text-on-surface-variant uppercase tracking-widest">Prize Pool</div>
+            <div className="text-sm font-black font-mono text-white">₹{c.pool.toLocaleString()}</div>
+          </div>
+        </div>
+
+
+
+        {/* Action Button */}
+        <button
+          onClick={() => handleEnroll(c.id)}
+          disabled={isClosed || isPending || c.enrolledByMe}
+          className={`text-[10px] font-mono font-black uppercase tracking-[0.2em] flex items-center gap-3 transition-colors ${
+            isClosed || c.enrolledByMe
+              ? 'text-on-surface-variant cursor-not-allowed'
+              : 'text-primary hover:text-white cursor-pointer relative z-10'
+          }`}
+        >
+          {isPending
+            ? 'PROCESSING...'
+            : isClosed
+            ? 'SPRINT CLOSED'
+            : c.enrolledByMe
+            ? 'ENROLLED'
+            : user
+            ? 'INITIALIZE SPRINT'
+            : 'LOGIN TO INITIALIZE'}
+          {!isClosed && !c.enrolledByMe && <span className="w-6 h-[1px] bg-current inline-block" />}
+        </button>
+      </div>
+    </div>
   )
 }
 

@@ -70,6 +70,20 @@ const toNullableDate = (value: unknown): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+const inferPlatformFromUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null
+  const lower = url.toLowerCase()
+  if (lower.includes('hackerrank')) return 'HackerRank'
+  if (lower.includes('github')) return 'GitHub'
+  if (lower.includes('leetcode')) return 'LeetCode'
+  if (lower.includes('codechef')) return 'CodeChef'
+  if (lower.includes('meet.google')) return 'Google Meet'
+  if (lower.includes('zoom')) return 'Zoom'
+  if (lower.includes('teams.microsoft')) return 'MS Teams'
+  if (lower.includes('discord')) return 'Discord'
+  return 'External Platform'
+}
+
 const extractDriveFolderId = (value: string): string | null => {
   const trimmed = value.trim()
   if (!trimmed) return null
@@ -193,12 +207,12 @@ router.use(authenticate, adminOnly)
 
 // ── Stats ──────────────────────────────────────────────────────────────────
 router.get('/stats', async (_req, res) => {
-  const [{ totalMembers }]   = await db.select({ totalMembers:   sql<number>`count(*)` }).from(users)
-  const [{ totalEvents }]    = await db.select({ totalEvents:    sql<number>`count(*)` }).from(events)
-  const [{ activeEvents }]   = await db.select({ activeEvents:   sql<number>`count(*)` }).from(events).where(sql`${events.status} != 'Full'`)
-  const [{ totalChallenges }]= await db.select({ totalChallenges:sql<number>`count(*)` }).from(challenges)
-  const [{ totalProjects }]  = await db.select({ totalProjects:  sql<number>`count(*)` }).from(projects)
-  const [{ totalXp }]        = await db.select({ totalXp:        sql<number>`coalesce(sum(${users.xp}), 0)` }).from(users)
+  const [{ totalMembers }] = await db.select({ totalMembers: sql<number>`count(*)` }).from(users)
+  const [{ totalEvents }] = await db.select({ totalEvents: sql<number>`count(*)` }).from(events)
+  const [{ activeEvents }] = await db.select({ activeEvents: sql<number>`count(*)` }).from(events).where(sql`${events.status} != 'Full'`)
+  const [{ totalChallenges }] = await db.select({ totalChallenges: sql<number>`count(*)` }).from(challenges)
+  const [{ totalProjects }] = await db.select({ totalProjects: sql<number>`count(*)` }).from(projects)
+  const [{ totalXp }] = await db.select({ totalXp: sql<number>`coalesce(sum(${users.xp}), 0)` }).from(users)
 
   res.json({ totalMembers, activeEvents, totalEvents, totalChallenges, totalProjects, totalXpAwarded: totalXp })
 })
@@ -306,7 +320,7 @@ router.get('/events/:id/participants', async (req, res) => {
 })
 
 router.post('/events', async (req, res): Promise<void> => {
-  const { type, date, title, description, slots, total, status, location, accent, image, enrollmentXp, endsAt, benefits, schedule, requirements } = req.body as Partial<Event>
+  const { type, date, title, description, slots, total, status, location, accent, image, enrollmentXp, endsAt, benefits, schedule, requirements, externalUrl } = req.body as Partial<Event>
   if (!type || !date || !title || !description || slots == null || total == null) {
     res.status(400).json({ error: 'type, date, title, description, slots, total are required' }); return
   }
@@ -320,6 +334,8 @@ router.post('/events', async (req, res): Promise<void> => {
     benefits: toCommaArray(benefits),
     schedule: toScheduleArray(schedule),
     requirements: toCommaArray(requirements),
+    externalUrl: externalUrl ?? null,
+    platform: inferPlatformFromUrl(externalUrl),
   }).returning()
   res.status(201).json(ev)
 })
@@ -343,6 +359,10 @@ router.patch('/events/:id', async (req, res): Promise<void> => {
   if ('benefits' in input) fields.benefits = toCommaArray(input.benefits)
   if ('requirements' in input) fields.requirements = toCommaArray(input.requirements)
   if ('schedule' in input) fields.schedule = toScheduleArray(input.schedule)
+  if ('externalUrl' in input) {
+    fields.externalUrl = input.externalUrl
+    fields.platform = inferPlatformFromUrl(input.externalUrl as string)
+  }
 
   const [updated] = await db.update(events).set(fields).where(eq(events.id, req.params.id)).returning()
   if (!updated) { res.status(404).json({ error: 'Event not found' }); return }
@@ -409,7 +429,7 @@ router.get('/challenges/:id/participants', async (req, res) => {
 })
 
 router.post('/challenges', async (req, res): Promise<void> => {
-  const { title, difficulty, xp, pool, tags, description, requirements, timeline, prizes, status, enrollmentXp, endsAt } = req.body as Partial<Challenge>
+  const { title, difficulty, xp, pool, tags, description, requirements, timeline, prizes, status, enrollmentXp, endsAt, externalUrl } = req.body as Partial<Challenge>
   if (!title || !difficulty || xp == null || pool == null || !description) {
     res.status(400).json({ error: 'title, difficulty, xp, pool, description are required' }); return
   }
@@ -427,19 +447,21 @@ router.post('/challenges', async (req, res): Promise<void> => {
       status: status ?? 'Open',
       enrollmentXp: Number(enrollmentXp ?? 0),
       endsAt: toNullableDate(endsAt),
+      externalUrl: externalUrl ?? null,
     }).returning()
   } catch (error) {
     if (!isLegacyChallengeSchemaError(error)) throw error
-    ;[ch] = await db.insert(challenges).values({
-      id: `ch${Date.now()}`, title,
-      difficulty: difficulty as Challenge['difficulty'],
-      xp: Number(xp || 0), pool: Number(pool || 0),
-      completions: 0, participants: 0,
-      tags: toCommaArray(tags), description,
-      status: status ?? 'Open',
-      enrollmentXp: Number(enrollmentXp ?? 0),
-      endsAt: toNullableDate(endsAt),
-    }).returning()
+      ;[ch] = await db.insert(challenges).values({
+        id: `ch${Date.now()}`, title,
+        difficulty: difficulty as Challenge['difficulty'],
+        xp: Number(xp || 0), pool: Number(pool || 0),
+        completions: 0, participants: 0,
+        tags: toCommaArray(tags), description,
+        status: status ?? 'Open',
+        enrollmentXp: Number(enrollmentXp ?? 0),
+        endsAt: toNullableDate(endsAt),
+        externalUrl: externalUrl ?? null,
+      }).returning()
     ch = { ...ch, requirements: [], timeline: [], prizes: [] }
   }
   res.status(201).json(ch)
@@ -461,6 +483,7 @@ router.patch('/challenges/:id', async (req, res): Promise<void> => {
   if ('requirements' in input) fields.requirements = toCommaArray(input.requirements)
   if ('timeline' in input) fields.timeline = toLineArray(input.timeline)
   if ('prizes' in input) fields.prizes = toLineArray(input.prizes)
+  if ('externalUrl' in input) fields.externalUrl = input.externalUrl
 
   let updated
   try {
@@ -471,7 +494,7 @@ router.patch('/challenges/:id', async (req, res): Promise<void> => {
     delete legacyFields.requirements
     delete legacyFields.timeline
     delete legacyFields.prizes
-    ;[updated] = await db.update(challenges).set(legacyFields).where(eq(challenges.id, req.params.id)).returning()
+      ;[updated] = await db.update(challenges).set(legacyFields).where(eq(challenges.id, req.params.id)).returning()
     if (updated) updated = { ...updated, requirements: [], timeline: [], prizes: [] }
   }
   if (!updated) { res.status(404).json({ error: 'Challenge not found' }); return }
@@ -490,49 +513,29 @@ router.get('/gallery', async (_req, res) => {
 })
 
 router.post('/gallery', async (req, res): Promise<void> => {
-  const { tag, year, label, span, img } = req.body as Partial<GalleryPhoto>
+  const { tag, year, label, span, img, driveUrl } = req.body as {
+    tag?: string; year?: string; label?: string; span?: string; img?: string; driveUrl?: string
+  }
   const imageInput = typeof img === 'string' ? img.trim() : ''
-  const folderId = imageInput ? extractDriveFolderId(imageInput) : null
 
-  if (!tag || !year || !imageInput) {
-    res.status(400).json({ error: 'tag, year, img are required' }); return
+  if (!tag || !year || !label) {
+    res.status(400).json({ error: 'tag, year, label are required' }); return
   }
 
-  if (folderId) {
-    const driveImages = await getDriveFolderImages(folderId)
-    if (driveImages.length === 0) {
-      res.status(400).json({ error: 'No images found in the provided Drive folder. Ensure the folder is public.' })
-      return
-    }
-
-    const labelPrefix = (label ?? '').trim()
-    const now = Date.now()
-    const rows = driveImages.map((entry, index) => {
-      const sanitizedName = (entry.name || '').trim().replace(/\.[a-z0-9]+$/i, '')
-      const generatedLabel = labelPrefix
-        ? `${labelPrefix} ${index + 1}`
-        : sanitizedName || `Drive Image ${index + 1}`
-
-      return {
-        id: `g${now}${index}`,
-        tag,
-        year,
-        label: generatedLabel,
-        span: span ?? '',
-        img: entry.url,
-      }
-    })
-
-    const created = await db.insert(gallery).values(rows).returning()
-    res.status(201).json({ imported: created.length, photos: created })
-    return
+  // Drive link card: needs an img (thumbnail) + driveUrl
+  if (driveUrl) {
+    if (!imageInput) { res.status(400).json({ error: 'img (thumbnail) is required for Drive link cards' }); return }
+    const [photo] = await db.insert(gallery).values({
+      id: `g${Date.now()}`, tag, year, label, span: span ?? '', img: imageInput, driveUrl
+    }).returning()
+    res.status(201).json(photo); return
   }
 
-  if (!label) {
-    res.status(400).json({ error: 'label is required for single image uploads' }); return
-  }
-
-  const [photo] = await db.insert(gallery).values({ id: `g${Date.now()}`, tag, year, label, span: span ?? '', img: imageInput }).returning()
+  // Regular image upload
+  if (!imageInput) { res.status(400).json({ error: 'img is required' }); return }
+  const [photo] = await db.insert(gallery).values({
+    id: `g${Date.now()}`, tag, year, label, span: span ?? '', img: imageInput, driveUrl: null
+  }).returning()
   res.status(201).json(photo)
 })
 
@@ -621,14 +624,14 @@ router.post('/challenges/:id/winners', async (req, res): Promise<void> => {
   for (const w of winners) {
     const [existing] = await db.select().from(userActiveChallenges)
       .where(and(eq(userActiveChallenges.userId, w.userId), eq(userActiveChallenges.challengeId, challengeId)))
-    
+
     const oldXp = existing?.awardXp || 0
     const diff = w.awardXp - oldXp
 
     await db.update(userActiveChallenges)
       .set({ position: w.position, awardXp: w.awardXp, verified: true, completed: true })
       .where(and(eq(userActiveChallenges.userId, w.userId), eq(userActiveChallenges.challengeId, challengeId)))
-    
+
     if (diff !== 0) {
       await db.update(users)
         .set({ xp: sql`${users.xp} + ${diff}` })
@@ -646,14 +649,14 @@ router.post('/events/:id/winners', async (req, res): Promise<void> => {
   for (const w of winners) {
     const [existing] = await db.select().from(userEnrolledEvents)
       .where(and(eq(userEnrolledEvents.userId, w.userId), eq(userEnrolledEvents.eventId, eventId)))
-    
+
     const oldXp = existing?.awardXp || 0
     const diff = w.awardXp - oldXp
 
     await db.update(userEnrolledEvents)
       .set({ position: w.position, awardXp: w.awardXp })
       .where(and(eq(userEnrolledEvents.userId, w.userId), eq(userEnrolledEvents.eventId, eventId)))
-    
+
     if (diff !== 0) {
       await db.update(users)
         .set({ xp: sql`${users.xp} + ${diff}` })
@@ -669,7 +672,7 @@ router.post('/challenges/verify', async (req, res): Promise<void> => {
 
   const [enrollment] = await db.select().from(userActiveChallenges)
     .where(and(eq(userActiveChallenges.userId, userId), eq(userActiveChallenges.challengeId, challengeId)))
-  
+
   if (!enrollment) { res.status(404).json({ error: 'Enrollment not found' }); return }
   if (enrollment.verified) { res.status(400).json({ error: 'Already verified' }); return }
 
@@ -683,7 +686,7 @@ router.post('/challenges/verify', async (req, res): Promise<void> => {
   await db.update(users)
     .set({ xp: sql`${users.xp} + ${challenge.xp}` })
     .where(eq(users.id, userId))
-  
+
   await db.update(challenges)
     .set({ completions: sql`${challenges.completions} + 1` })
     .where(eq(challenges.id, challengeId))

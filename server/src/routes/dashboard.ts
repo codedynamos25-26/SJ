@@ -101,7 +101,7 @@ router.get('/', authenticate, async (req, res): Promise<void> => {
   const activity = allActivityRaw.slice(0, 3).map(({ time, text, accent }) => ({ time, text, accent }))
 
   res.json({
-    user: { id: user.id, name: user.name, email: user.email, xp: user.xp, rank: liveRank, usn: user.usn, department: user.department, year: user.year, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track },
+    user: { id: user.id, name: user.name, email: user.email, xp: user.xp, rank: liveRank, usn: user.usn, department: user.department, year: user.year, semester: user.semester, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track },
     enrolledEvents,
     activeChallenges,
     activity,

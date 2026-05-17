@@ -10,6 +10,10 @@ export interface User {
   streak: number
   badge: string
   track: string
+  usn?: string
+  department?: string
+  year?: string
+  semester?: string
   createdAt: string
   enrolledEvents: string[]
   activeChallenges: string[]
@@ -61,6 +65,7 @@ export interface Challenge {
   status: string
   enrollmentXp: number
   endsAt?: string
+  externalUrl?: string
 }
 
 export interface TeamMember {

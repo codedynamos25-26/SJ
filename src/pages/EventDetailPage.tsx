@@ -51,6 +51,7 @@ const EventDetailPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [lightbox, setLightbox] = useState<{ img: string; label: string; tag: string; year: string } | null>(null)
+  const [isExtHovered, setIsExtHovered] = useState(false)
 
   const { data: event, isLoading, isError } = useQuery<EventDetail>({
     queryKey: ['event', id],
@@ -287,7 +288,7 @@ const EventDetailPage = () => {
           </div>
 
           {/* Right — RSVP card */}
-          <div className="lg:sticky lg:top-28 self-start">
+          <div className="lg:sticky lg:top-28 self-start space-y-4">
             <div className="lab-panel p-8 border-t-4" style={{ borderTopColor: event.accent }}>
               <div className="mb-6">
                 <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">Seats available</div>
@@ -328,8 +329,14 @@ const EventDetailPage = () => {
                   href={ensureAbsoluteUrl(event.externalUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block ${accentCls} hover:bg-current hover:text-black`}
-                  style={{ borderColor: event.accent, color: event.accent }}
+                  onMouseEnter={() => setIsExtHovered(true)}
+                  onMouseLeave={() => setIsExtHovered(false)}
+                  className={`w-full mt-4 py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all text-center block`}
+                  style={{
+                    borderColor: event.accent,
+                    color: isExtHovered ? '#000000' : event.accent,
+                    backgroundColor: isExtHovered ? event.accent : 'transparent'
+                  }}
                 >
                   JOIN ON {event.platform?.toUpperCase() || 'EXTERNAL PLATFORM'}
                 </a>
@@ -356,6 +363,43 @@ const EventDetailPage = () => {
                   <span style={{ color: event.accent }}>{event.status}</span>
                 </div>
               </div>
+            </div>
+
+            {/* "All the best" Panel */}
+            <div className="lab-panel p-6 bg-[#0E0E0E] border border-white/5 relative overflow-hidden group hover:border-primary/30 transition-all duration-500 rounded-sm shadow-xl shadow-black/50" style={{ borderTop: `4px solid ${event.accent}` }}>
+              {/* Decorative Tech Grid Lines */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02),transparent_60%)] pointer-events-none" />
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-current/10 to-transparent blur-xl group-hover:from-current/20 transition-all duration-700 text-primary" style={{ color: event.accent }} />
+              
+              <div className="relative z-10 flex flex-col items-center text-center py-4 space-y-4">
+                <style>{`
+                  @keyframes event-tech-blink {
+                    0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
+                    50% { opacity: 0.35; filter: drop-shadow(0 0 2px transparent); }
+                  }
+                  .animate-event-tech-blink {
+                    animation: event-tech-blink 1.5s infinite;
+                  }
+                `}</style>
+                <span className="material-symbols-outlined text-4xl animate-pulse" style={{ color: event.accent }}>
+                  local_fire_department
+                </span>
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-black italic uppercase tracking-wider font-headline animate-event-tech-blink" style={{ color: event.accent }}>
+                    ALL THE BEST!
+                  </h3>
+                </div>
+                <div className="h-[1px] w-12 bg-white/10 group-hover:w-20 transition-all duration-500" />
+                <p className="text-[11px] font-mono text-on-surface-variant max-w-[200px] leading-relaxed uppercase tracking-wide">
+                  Push your limits. Conquer the stack. Build the future.
+                </p>
+              </div>
+              
+              {/* Corner tech lines */}
+              <div className="absolute top-0 left-0 w-2 h-[2px]" style={{ backgroundColor: event.accent }} />
+              <div className="absolute top-0 left-0 w-[2px] h-2" style={{ backgroundColor: event.accent }} />
+              <div className="absolute bottom-0 right-0 w-2 h-[2px]" style={{ backgroundColor: event.accent }} />
+              <div className="absolute bottom-0 right-0 w-[2px] h-2" style={{ backgroundColor: event.accent }} />
             </div>
           </div>
         </div>

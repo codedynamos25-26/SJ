@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import AnimatedProfileBadge from '../components/ui/AnimatedProfileBadge'
@@ -9,7 +10,7 @@ import LeetCodeSettings from '../components/ui/LeetCodeSettings'
 interface DashboardData {
   user: {
     id: string; name: string; email: string; xp: number; rank: number
-    usn: string; department: string; year: string; githubUrl: string; track: string
+    usn: string; department: string; year: string; semester?: string; githubUrl: string; track: string
   }
   enrolledEvents: Array<{ id: string; type: string; date: string; title: string; status: string; accent: string }>
   activeChallenges: Array<{ id: string; title: string; difficulty: string; xp: number; verified: boolean }>
@@ -21,6 +22,48 @@ const fetchDashboard = () => api.get<DashboardData>('/dashboard').then((r) => r.
 const DashboardPage = () => {
   const { logout, user: authUser } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [editingField, setEditingField] = useState<'year' | 'semester' | 'track' | null>(null)
+  const [draftValue, setDraftValue] = useState('')
+
+  const updateProfile = useMutation({
+    mutationFn: (updates: Record<string, any>) => api.put('/user/profile', updates),
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: ['dashboard'] })
+      const previous = queryClient.getQueryData(['dashboard'])
+      queryClient.setQueryData(['dashboard'], (old: any) => {
+        if (!old) return old
+        return { ...old, user: { ...old.user, ...updates } }
+      })
+      return { previous }
+    },
+    onError: (_err, _updates, context) => {
+      if (context?.previous) queryClient.setQueryData(['dashboard'], context.previous)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+
+  const startEdit = (field: 'year' | 'semester' | 'track', current?: string) => {
+    setEditingField(field)
+    setDraftValue(current ?? '')
+  }
+
+  const cancelEdit = () => {
+    setEditingField(null)
+    setDraftValue('')
+  }
+
+  const saveEdit = () => {
+    if (!editingField) return
+    const nextValue = draftValue.trim()
+    if (!nextValue) {
+      cancelEdit()
+      return
+    }
+    updateProfile.mutate({ [editingField]: nextValue }, { onSuccess: () => cancelEdit() })
+  }
 
   const { data, isLoading, isError } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard })
 
@@ -97,26 +140,99 @@ const DashboardPage = () => {
             { label: 'Department', value: user.department || 'N/A', icon: 'school', accent: '#74facb' },
             { label: 'Track', value: user.track, icon: 'route', accent: '#ffb4ab' },
           ].map((s, i) => (
-            <div key={i} className="bg-surface-container-low p-5 border-l-4 flex flex-col gap-3" style={{ borderLeftColor: s.accent }}>
+            <div key={i} className="bg-surface-container-low p-5 border-l-4 flex flex-col gap-3 relative" style={{ borderLeftColor: s.accent }}>
               <span className="material-symbols-outlined text-xl" style={{ color: s.accent }}>{s.icon}</span>
-              <div className="text-3xl font-black truncate" style={{ color: s.accent }}>{s.value}</div>
+              {s.label === 'Track' && editingField === 'track' ? (
+                <input
+                  value={draftValue}
+                  onChange={(e) => setDraftValue(e.target.value.toUpperCase())}
+                  placeholder="FULLSTACK"
+                  className="text-2xl font-black bg-transparent border-b border-outline-variant/40 focus:outline-none uppercase placeholder:text-on-surface-variant/50"
+                  style={{ color: s.accent }}
+                />
+              ) : (
+                <div className="text-3xl font-black truncate" style={{ color: s.accent }}>{s.value}</div>
+              )}
               <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">{s.label}</div>
+              {s.label === 'Track' && (
+                editingField === 'track' ? (
+                  <div className="absolute top-2 right-2 flex items-center gap-1">
+                    <button onClick={saveEdit} className="text-primary">
+                      <span className="material-symbols-outlined text-sm">check</span>
+                    </button>
+                    <button onClick={cancelEdit} className="text-error">
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => startEdit('track', user.track)} className="absolute top-2 right-2 text-primary z-10">
+                    <span className="material-symbols-outlined text-sm">edit</span>
+                  </button>
+                )
+              )}
             </div>
           ))}
         </section>
 
         {/* Missing rankProgress replacement — using student track info */}
         <section className="bg-surface-container rounded-xl p-6 mb-8">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-start mb-4">
             <div>
               <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">Student Profile Validation</div>
               <div className="font-headline font-black">
                 {user.usn || 'UNVERIFIED IDENTIFIER'}
               </div>
             </div>
-            <span className="font-mono text-sm text-on-surface-variant">
-              Year {user.year || 'N/A'}
-            </span>
+            <div className="flex items-center gap-4">
+              {editingField === 'year' ? (
+                <div className="font-mono text-sm text-on-surface-variant flex items-center gap-2">
+                  <span>Year:</span>
+                  <input
+                    value={draftValue}
+                    onChange={(e) => setDraftValue(e.target.value)}
+                    placeholder="1st"
+                    className="w-20 bg-transparent border-b border-outline-variant/40 focus:outline-none placeholder:text-on-surface-variant/50"
+                  />
+                  <button onClick={saveEdit} className="text-primary">
+                    <span className="material-symbols-outlined text-sm">check</span>
+                  </button>
+                  <button onClick={cancelEdit} className="text-error">
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-on-surface-variant flex items-center">
+                  Year: {user.year || 'N/A'}
+                  <button onClick={() => startEdit('year', user.year)} className="ml-2 p-1 rounded-full text-primary">
+                    <span className="material-symbols-outlined text-base">edit</span>
+                  </button>
+                </div>
+              )}
+              {editingField === 'semester' ? (
+                <div className="font-mono text-sm text-on-surface-variant flex items-center gap-2">
+                  <span>Sem:</span>
+                  <input
+                    value={draftValue}
+                    onChange={(e) => setDraftValue(e.target.value)}
+                    placeholder="5"
+                    className="w-16 bg-transparent border-b border-outline-variant/40 focus:outline-none placeholder:text-on-surface-variant/50"
+                  />
+                  <button onClick={saveEdit} className="text-primary">
+                    <span className="material-symbols-outlined text-sm">check</span>
+                  </button>
+                  <button onClick={cancelEdit} className="text-error">
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-on-surface-variant flex items-center">
+                  Sem: {user.semester || 'N/A'}
+                  <button onClick={() => startEdit('semester', user.semester)} className="ml-2 p-1 rounded-full text-primary">
+                    <span className="material-symbols-outlined text-base">edit</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mt-2">
              <span>{user.email}</span>

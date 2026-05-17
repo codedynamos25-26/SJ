@@ -61,12 +61,24 @@ const ChallengeDetailPage = () => {
     },
   })
 
+  const unenrollMutation = useMutation({
+    mutationFn: () => api.delete(`/challenges/${id}/enroll`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['challenge', id] })
+      queryClient.invalidateQueries({ queryKey: ['challenges'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
+  })
+
   const handleAction = () => {
     if (!user) {
       navigate('/login', { state: { from: { pathname: `/challenges/${id}` } } })
       return
     }
-    if (!challenge?.enrolledByMe) {
+    if (challenge?.enrolledByMe) {
+      unenrollMutation.mutate()
+    } else {
       enrollMutation.mutate()
     }
   }
@@ -92,7 +104,7 @@ const ChallengeDetailPage = () => {
     )
   }
 
-  const isPending = enrollMutation.isPending
+  const isPending = enrollMutation.isPending || unenrollMutation.isPending
   const completionPct = challenge.participants > 0 ? Math.round((challenge.completions / challenge.participants) * 100) : 0
   const style = diffStyle[challenge.difficulty] ?? diffStyle['Medium']
   const timeline = (challenge.timeline && challenge.timeline.length > 0 ? challenge.timeline : defaultTimeline)
@@ -217,17 +229,7 @@ const ChallengeDetailPage = () => {
               </ul>
             </div>
 
-            {/* Completion stats */}
-            <div>
-              <h2 className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-4">Completion Rate</h2>
-              <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mb-2">
-                <span>{challenge.completions} completions</span>
-                <span className="text-white">{completionPct}%</span>
-              </div>
-              <div className="w-full bg-white/5 h-1">
-                <div className={`h-full ${style.bg}`} style={{ width: `${completionPct}%` }} />
-              </div>
-            </div>
+
           </div>
 
           {/* Right — enroll card */}
@@ -254,18 +256,18 @@ const ChallengeDetailPage = () => {
 
               <button
                 onClick={handleAction}
-                disabled={isPending || challenge.status === 'Closed' || challenge.enrolledByMe}
+                disabled={isPending || challenge.status === 'Closed'}
                 className={`w-full py-4 text-[10px] font-mono font-black uppercase tracking-[0.2em] border transition-all disabled:opacity-40 ${
-                  challenge.enrolledByMe
+                  challenge.status === 'Closed'
                     ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
-                    : challenge.status === 'Closed'
-                    ? 'border-white/10 text-on-surface-variant cursor-not-allowed'
+                    : challenge.enrolledByMe
+                    ? 'border-error text-error hover:bg-error hover:text-white'
                     : `${style.text} ${style.border} hover:${style.bg} hover:text-on-primary`
                 }`}
               >
                 {isPending ? 'Processing...'
                   : challenge.status === 'Closed' ? 'Sprint Finished'
-                  : challenge.enrolledByMe ? 'Active'
+                  : challenge.enrolledByMe ? 'Cancel Enrollment'
                   : !user ? 'Login to Join'
                   : 'Initialize Sprint'}
               </button>
@@ -286,6 +288,43 @@ const ChallengeDetailPage = () => {
                   Sprint active in your dashboard.
                 </p>
               )}
+            </div>
+
+            {/* "All the best" Panel */}
+            <div className={`lab-panel p-6 bg-[#0E0E0E] border border-white/5 relative overflow-hidden group hover:${style.border}/30 transition-all duration-500 rounded-sm shadow-xl shadow-black/50`}>
+              {/* Decorative Tech Grid Lines */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02),transparent_60%)] pointer-events-none" />
+              <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-current/10 to-transparent blur-xl group-hover:from-current/20 transition-all duration-700 ${style.text}`} />
+              
+              <div className="relative z-10 flex flex-col items-center text-center py-4 space-y-4">
+                <style>{`
+                  @keyframes challenge-tech-blink {
+                    0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
+                    50% { opacity: 0.35; filter: drop-shadow(0 0 2px transparent); }
+                  }
+                  .animate-challenge-tech-blink {
+                    animation: challenge-tech-blink 1.5s infinite;
+                  }
+                `}</style>
+                <span className={`material-symbols-outlined text-4xl animate-pulse ${style.text}`}>
+                  local_fire_department
+                </span>
+                <div className="space-y-1">
+                  <h3 className={`text-2xl font-black italic uppercase tracking-wider font-headline animate-challenge-tech-blink ${style.text}`}>
+                    ALL THE BEST!
+                  </h3>
+                </div>
+                <div className="h-[1px] w-12 bg-white/10 group-hover:w-20 transition-all duration-500" />
+                <p className="text-[11px] font-mono text-on-surface-variant max-w-[200px] leading-relaxed uppercase tracking-wide">
+                  Push your limits. Conquer the stack. Build the future.
+                </p>
+              </div>
+              
+              {/* Corner tech lines */}
+              <div className={`absolute top-0 left-0 w-2 h-[2px] ${style.bg}/40`} />
+              <div className={`absolute top-0 left-0 w-[2px] h-2 ${style.bg}/40`} />
+              <div className={`absolute bottom-0 right-0 w-2 h-[2px] ${style.bg}/40`} />
+              <div className={`absolute bottom-0 right-0 w-[2px] h-2 ${style.bg}/40`} />
             </div>
 
             {/* Prizes */}

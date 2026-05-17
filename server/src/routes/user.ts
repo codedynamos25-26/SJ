@@ -99,10 +99,13 @@ router.post('/leetcode', async (req, res): Promise<void> => {
 })
 
 router.put('/profile', async (req, res): Promise<void> => {
-  const { githubUrl, leetcodeProfile, leetcodeSolved } = req.body as {
+  const { githubUrl, leetcodeProfile, leetcodeSolved, year, semester, track } = req.body as {
     githubUrl?: string
     leetcodeProfile?: string
     leetcodeSolved?: number
+    year?: string
+    semester?: string
+    track?: string
   }
 
   const updates: Partial<typeof users.$inferInsert> = {}
@@ -110,6 +113,9 @@ router.put('/profile', async (req, res): Promise<void> => {
   if (typeof githubUrl === 'string') updates.githubUrl = githubUrl
   if (typeof leetcodeProfile === 'string') updates.leetcodeProfile = parseLeetCodeUsername(leetcodeProfile)
   if (typeof leetcodeSolved === 'number') updates.leetcodeSolved = Math.max(0, Math.floor(leetcodeSolved))
+  if (typeof year === 'string') updates.year = year.trim()
+  if (typeof semester === 'string') updates.semester = semester.trim()
+  if (typeof track === 'string') updates.track = track.trim()
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: 'No valid profile fields provided' })
@@ -133,6 +139,7 @@ router.put('/profile', async (req, res): Promise<void> => {
       usn: updated.usn,
       department: updated.department,
       year: updated.year,
+      semester: updated.semester,
       githubUrl: updated.githubUrl,
       leetcodeProfile: updated.leetcodeProfile,
       leetcodeSolved: updated.leetcodeSolved,

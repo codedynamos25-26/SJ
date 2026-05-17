@@ -1,4 +1,4 @@
-import express from 'express'
+import express from 'express' // v2
 import cors from 'cors'
 import helmet from 'helmet'
 import dns from 'dns'
@@ -31,10 +31,10 @@ app.use(helmet({
 }))
 
 // In dev, allow all origins. In production, restrict to the Vercel frontend URL.
-app.use(cors({ 
-  origin: true, 
+app.use(cors({
+  origin: true,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
 app.use(express.json({ limit: '10mb' }))
@@ -80,6 +80,7 @@ app.listen(PORT, async () => {
     await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;`)
     await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;`)
     await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "participants" integer DEFAULT 0;`)
+    await db.execute(sql`ALTER TABLE "gallery" ADD COLUMN IF NOT EXISTS "drive_url" text;`)
     console.log("✓ Database auto-migration complete")
   } catch (err) {
     console.error("Auto-migration skipped or failed:", err)

@@ -101,22 +101,22 @@ const EventsPage = () => {
   return (
     <PublicLayout>
       {/* Header */}
-      <section className="py-10 px-8 bg-[#0A0A0A] border-b border-white/5">
+      <section className="py-8 md:py-10 px-4 md:px-8 bg-[#0A0A0A] border-b border-white/5">
         <div className="max-w-[1440px] mx-auto">
-          <div className="text-[11px] font-black tracking-[0.5em] text-primary uppercase mb-4 font-['Space_Mono']">
+          <div className="text-[11px] font-black tracking-[0.5em] text-primary uppercase mb-3 font-['Space_Mono']">
             SCHEDULED OPERATIONS
           </div>
-          <h1 className="text-6xl md:text-7xl font-black italic uppercase tracking-tighter mb-6 font-['Orbitron']">Event Queue</h1>
-          <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mb-8" />
-          <p className="text-on-surface-variant font-body max-w-xl">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black italic uppercase tracking-tighter mb-4 font-['Orbitron']">Event Queue</h1>
+          <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary mb-5" />
+          <p className="text-on-surface-variant font-body max-w-xl text-sm md:text-base">
             High-signal technical events curated for elite developers. Workshops, hackathons, and community sprints.
           </p>
         </div>
       </section>
 
       {/* Filters */}
-      <section className="sticky top-[100px] z-30 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-white/5 px-8 py-3">
-        <div className="max-w-[1440px] mx-auto space-y-3">
+      <section className="sticky top-[100px] z-30 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-white/5 px-4 md:px-8 py-3">
+        <div className="max-w-[1440px] mx-auto space-y-2">
           <AnimatedDropdown
             label="Status"
             value={phaseFilter}
@@ -148,7 +148,7 @@ const EventsPage = () => {
       </section>
 
       {/* Events Grid */}
-      <section className="py-16 px-8">
+      <section className="py-10 md:py-16 px-4 md:px-8">
         <div className="max-w-[1440px] mx-auto">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">

@@ -95,7 +95,11 @@ router.delete('/:id/rsvp', authenticate, async (req, res): Promise<void> => {
     .where(and(eq(userEnrolledEvents.userId, req.user!.userId), eq(userEnrolledEvents.eventId, event.id)))
   await db.update(events).set({ slots: event.slots + 1 }).where(eq(events.id, event.id))
 
-  res.json({ message: 'RSVP cancelled', eventId: event.id })
+  if (event.enrollmentXp > 0) {
+    await db.update(users).set({ xp: sql`GREATEST(${users.xp} - ${event.enrollmentXp}, 0)` }).where(eq(users.id, req.user!.userId))
+  }
+
+  res.json({ message: 'RSVP cancelled', eventId: event.id, xpDeducted: event.enrollmentXp })
 })
 
 export default router

@@ -315,13 +315,17 @@ const LeaderboardPage = () => {
                 {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
               <h2 className="text-2xl font-black text-white text-center">{selectedStudent.name}</h2>
-              <p className="text-xs font-mono text-white/40 uppercase mt-1">{selectedStudent.department || 'No Dept'} · {selectedStudent.semester ? `SEM_${selectedStudent.semester}` : selectedStudent.year || 'No Year'}</p>
+              <p className="text-xs font-mono text-white/40 uppercase mt-1">{selectedStudent.department || 'No Dept'} · {selectedStudent.semester ? `SEM_${selectedStudent.semester}` : selectedStudent.year || 'No Year'} · {selectedStudent.track || 'No Track'}</p>
             </div>
             
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <span className="text-xs font-mono text-white/40 uppercase">USN</span>
                 <span className="text-sm font-bold text-white">{selectedStudent.usn || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <span className="text-xs font-mono text-white/40 uppercase">Track</span>
+                <span className="text-sm font-bold text-white">{selectedStudent.track || '—'}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <span className="text-xs font-mono text-white/40 uppercase">Club XP</span>

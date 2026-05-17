@@ -194,18 +194,25 @@ router.post('/:id/enroll', authenticate, async (req, res): Promise<void> => {
 
 // DELETE /api/challenges/:id/enroll — withdraw
 router.delete('/:id/enroll', authenticate, async (req, res): Promise<void> => {
-  const [challenge] = await db.select({ id: challenges.id }).from(challenges).where(eq(challenges.id, req.params.id))
-  if (!challenge) { res.status(404).json({ error: 'Challenge not found' }); return }
+  const [row] = await db.select({
+    id: challenges.id,
+    enrollmentXp: challenges.enrollmentXp
+  }).from(challenges).where(eq(challenges.id, req.params.id))
+  if (!row) { res.status(404).json({ error: 'Challenge not found' }); return }
 
   const [enrolled] = await db.select().from(userActiveChallenges)
-    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, challenge.id)))
+    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, row.id)))
   if (!enrolled) { res.status(409).json({ error: 'Not enrolled' }); return }
 
   await db.delete(userActiveChallenges)
-    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, challenge.id)))
-  await db.update(challenges).set({ participants: sql`GREATEST(${challenges.participants} - 1, 0)` }).where(eq(challenges.id, challenge.id))
+    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, row.id)))
+  await db.update(challenges).set({ participants: sql`GREATEST(${challenges.participants} - 1, 0)` }).where(eq(challenges.id, row.id))
 
-  res.json({ message: 'Withdrawn', challengeId: challenge.id })
+  if (row.enrollmentXp > 0) {
+    await db.update(users).set({ xp: sql`GREATEST(${users.xp} - ${row.enrollmentXp}, 0)` }).where(eq(users.id, req.user!.userId))
+  }
+
+  res.json({ message: 'Withdrawn', challengeId: row.id, xpDeducted: row.enrollmentXp })
 })
 
 export default router

@@ -214,11 +214,11 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
 
       {/* ── Page Content ────────────────────────────────────────── */}
       {/* top padding = ticker(28px) + nav(~64px) + gap(8px) = ~100px */}
-      <div className="pt-[100px]">{children}</div>
+      <div className="pt-[90px] md:pt-[100px]">{children}</div>
 
       {/* ── Footer ──────────────────────────────────────────────── */}
-      <footer className="bg-[#080808] border-t border-white/5 py-14 px-8 mt-8">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
+      <footer className="bg-[#080808] border-t border-white/5 py-10 md:py-14 px-4 md:px-8 mt-8">
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-start gap-8 md:gap-12">
           {/* Brand */}
           <div className="space-y-6 max-w-xs">
             <div>

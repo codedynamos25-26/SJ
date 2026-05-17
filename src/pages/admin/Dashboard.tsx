@@ -9,7 +9,7 @@ type Tab = 'members' | 'events' | 'challenges' | 'gallery' | 'projects' | 'annou
 interface Member { id: string; email: string; name: string; role: string; xp: number; track: string; usn?: string; department?: string; year?: string; githubUrl?: string; createdAt: string }
 interface Event { id: string; type: string; date: string; title: string; description: string; slots: number; total: number; status: string; location: string; accent: string; image?: string; benefits?: string[]; schedule?: (string | { time: string; activity: string })[]; requirements?: string[]; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean }
 interface Challenge { id: string; title: string; difficulty: string; xp: number; pool: number; completions: number; participants: number; tags: string[]; description: string; status: string; enrollmentXp?: number; externalUrl?: string; endsAt?: string | null; closedByTime?: boolean; requirements?: string[]; timeline?: string[]; prizes?: string[] }
-interface GalleryPhoto { id: string; tag: string; year: string; label: string; span: string; img: string }
+interface GalleryPhoto { id: string; tag: string; year: string; label: string; span: string; img: string; driveUrl?: string | null }
 interface Project { id: string; title: string; description: string; status: string; tech: string[]; stars: number; forks: number; img: string; githubUrl?: string }
 interface TeamMember { id: string; name: string; role: string; dept: string; tier: string; image?: string; instagramUrl?: string; linkedinUrl?: string }
 
@@ -81,7 +81,7 @@ const blankChallenge = (): Partial<Challenge> => ({
   enrollmentXp: 0,
   externalUrl: '',
 })
-const blankPhoto = (): Partial<GalleryPhoto> => ({ tag: 'Workshops', year: '2026', label: '', span: '', img: '' })
+const blankPhoto = (): Partial<GalleryPhoto> => ({ tag: 'Workshops', year: '2026', label: '', span: '', img: '', driveUrl: '' })
 const blankProject = (): Partial<Project> => ({ title: '', description: '', status: 'Beta', tech: [], stars: 0, forks: 0, img: '', githubUrl: '' })
 const blankTeamMember = (): Partial<TeamMember> => ({ name: '', role: '', dept: '', tier: 'Operator', image: '', instagramUrl: '', linkedinUrl: '' })
 
@@ -193,7 +193,7 @@ const AdminDashboard = () => {
   })
 
   const winnersMutation = useMutation({
-    mutationFn: ({ type, id, winners }: { type: 'event' | 'challenge', id: string, winners: any[] }) => 
+    mutationFn: ({ type, id, winners }: { type: 'event' | 'challenge', id: string, winners: any[] }) =>
       api.post(`/admin/${type === 'event' ? 'events' : 'challenges'}/${id}/winners`, { winners }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-members'] })
@@ -203,6 +203,7 @@ const AdminDashboard = () => {
     }
   })
 
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const navItems: { id: Tab; icon: string; label: string }[] = [
     { id: 'members', icon: 'group', label: 'Members' },
     { id: 'events', icon: 'event', label: 'Events' },
@@ -216,19 +217,29 @@ const AdminDashboard = () => {
   return (
     <div className="overflow-x-hidden bg-[#0d141c] min-h-screen text-white font-headline">
 
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[45] lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="h-screen w-64 fixed left-0 top-0 flex flex-col bg-[#151c24] border-r border-white/5 z-50">
-        <div className="flex flex-col h-full py-8 px-4">
-          <div className="mb-10 px-2">
-            <h1 className="text-primary font-black text-xl tracking-tighter uppercase">CODE DYNAMOS</h1>
-            <p className="text-xs text-slate-500 font-mono uppercase tracking-wider mt-1">Admin Panel</p>
+      <aside className={`h-screen w-64 fixed left-0 top-0 flex flex-col bg-[#151c24] border-r border-white/5 z-50 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="flex flex-col h-full py-6 px-4 overflow-y-auto">
+          <div className="mb-8 px-2 flex items-center justify-between">
+            <div>
+              <h1 className="text-primary font-black text-lg tracking-tighter uppercase">CODE DYNAMOS</h1>
+              <p className="text-xs text-slate-500 font-mono uppercase tracking-wider mt-0.5">Admin Panel</p>
+            </div>
+            <button className="lg:hidden text-slate-400 hover:text-white" onClick={() => setSidebarOpen(false)}>
+              <span className="material-symbols-outlined">close</span>
+            </button>
           </div>
 
-          <nav className="flex-1 space-y-1">
+          <nav className="flex-1 space-y-0.5">
             {navItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setTab(item.id)}
+                onClick={() => { setTab(item.id); setSidebarOpen(false) }}
                 className={`w-full flex items-center px-4 py-3 text-sm font-bold transition-all ${
                   tab === item.id
                     ? 'text-primary bg-[#192028] border-r-4 border-primary'
@@ -241,17 +252,16 @@ const AdminDashboard = () => {
             ))}
           </nav>
 
-          <div className="mt-auto space-y-1 pt-6 border-t border-white/5">
+          <div className="mt-auto space-y-1 pt-4 border-t border-white/5">
             <div className="px-4 py-3 flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary/10 border border-primary/30 flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
                 <span className="font-pixel text-xs text-primary">{user?.name.split(' ').map(n => n[0]).join('')}</span>
               </div>
-              <div>
-                <div className="text-xs font-bold text-white">{user?.name}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-white truncate">{user?.name}</div>
                 <div className="text-[10px] text-primary font-mono uppercase">Admin</div>
               </div>
             </div>
-
             <Link to="/" className="flex items-center px-4 py-2 text-slate-400 hover:text-white transition-colors">
               <span className="material-symbols-outlined mr-3 text-sm">home</span>
               <span className="font-mono uppercase tracking-wider text-xs font-bold">Site Home</span>
@@ -265,14 +275,20 @@ const AdminDashboard = () => {
       </aside>
 
       {/* Header */}
-      <header className="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 z-40 bg-[#0d141c]/80 backdrop-blur-xl border-b border-white/5 flex items-center px-8">
+      <header className="fixed top-0 right-0 left-0 lg:left-64 h-14 z-40 bg-[#0d141c]/95 backdrop-blur-xl border-b border-white/5 flex items-center px-4 md:px-8 gap-3">
+        <button
+          className="lg:hidden w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <span className="material-symbols-outlined">menu</span>
+        </button>
         <div className="text-xs font-mono uppercase tracking-widest text-on-surface-variant">
           Admin / <span className="text-white capitalize">{tab}</span>
         </div>
       </header>
 
       {/* Main */}
-      <main className="ml-64 pt-20 p-8 min-h-screen text-on-surface">
+      <main className="lg:ml-64 pt-14 p-4 md:p-6 lg:p-8 min-h-screen text-on-surface">
 
         {/* ── OVERVIEW ── */}
 
@@ -343,7 +359,7 @@ const AdminDashboard = () => {
                             >
                               {m.role === 'admin' ? 'Demote' : 'Promote'}
                             </button>
-                            <button 
+                            <button
                               onClick={() => setDeleteConfirm({ type: 'member', id: m.id })}
                               className="p-1 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors ml-2"
                               title="Delete Member"
@@ -369,7 +385,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">EVENT MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Events <span className="text-primary">({events.length})</span></h2>
               </div>
-              <button 
+              <button
                 onClick={() => setEventModal({ open: true, data: blankEvent(), editing: false })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -397,21 +413,21 @@ const AdminDashboard = () => {
                       <span className="material-symbols-outlined text-sm">open_in_new</span>
                       Open
                     </Link>
-                    <button 
+                    <button
                       onClick={() => setParticipantsModal({ open: true, type: 'event', id: ev.id, title: ev.title })}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 text-secondary border border-secondary/30 text-[10px] font-mono uppercase font-black hover:bg-secondary hover:text-white transition-all"
                     >
                       <span className="material-symbols-outlined text-sm">groups</span>
                       Participants
                     </button>
-                    <button 
+                    <button
                       onClick={() => setEventModal({ open: true, data: { ...ev }, editing: true })}
                       className="p-2 text-on-surface-variant hover:text-white hover:bg-surface-bright transition-colors"
                       title="Edit"
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         const newStatus = ev.status === 'Open' ? 'Closed' : 'Open';
                         updateEventMutation.mutate({ id: ev.id, status: newStatus, endsAt: newStatus === 'Open' ? null : ev.endsAt });
@@ -422,7 +438,7 @@ const AdminDashboard = () => {
                       <span className="material-symbols-outlined text-sm">{ev.status === 'Open' ? 'block' : 'play_arrow'}</span>
                       {ev.status === 'Open' ? 'Close' : (ev.closedByTime ? 'Resume (Time)' : 'Resume')}
                     </button>
-                    <button 
+                    <button
                       onClick={() => setDeleteConfirm({ type: 'event', id: ev.id })}
                       className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
@@ -443,7 +459,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">CHALLENGE MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Challenges <span className="text-primary">({challenges.length})</span></h2>
               </div>
-              <button 
+              <button
                 onClick={() => setChallengeModal({ open: true, data: blankChallenge(), editing: false })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -471,21 +487,21 @@ const AdminDashboard = () => {
                       <span className="material-symbols-outlined text-sm">open_in_new</span>
                       Open
                     </Link>
-                    <button 
+                    <button
                       onClick={() => setParticipantsModal({ open: true, type: 'challenge', id: ch.id, title: ch.title })}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/30 text-[10px] font-mono uppercase font-black hover:bg-primary hover:text-on-primary transition-all"
                     >
                       <span className="material-symbols-outlined text-sm">workspace_premium</span>
                       Winners
                     </button>
-                    <button 
+                    <button
                       onClick={() => setChallengeModal({ open: true, data: { ...ch }, editing: true })}
                       className="p-2 text-on-surface-variant hover:text-white hover:bg-surface-bright transition-colors"
                       title="Edit"
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         const newStatus = ch.status === 'Open' ? 'Closed' : 'Open';
                         updateChallengeMutation.mutate({ id: ch.id, status: newStatus, endsAt: newStatus === 'Open' ? null : ch.endsAt });
@@ -496,7 +512,7 @@ const AdminDashboard = () => {
                       <span className="material-symbols-outlined text-sm">{ch.status === 'Open' ? 'block' : 'play_arrow'}</span>
                       {ch.status === 'Open' ? 'Close' : (ch.closedByTime ? 'Resume (Time)' : 'Resume')}
                     </button>
-                    <button 
+                    <button
                       onClick={() => setDeleteConfirm({ type: 'challenge', id: ch.id })}
                       className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
@@ -517,7 +533,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">GALLERY MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Gallery <span className="text-primary">({photos.length})</span></h2>
               </div>
-              <button 
+              <button
                 onClick={() => setPhotoModal({ open: true, data: blankPhoto() })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -527,13 +543,26 @@ const AdminDashboard = () => {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {photos.map((ph) => (
-                <div key={ph.id} className="bg-surface-container border border-outline-variant/10 overflow-hidden group relative shadow-lg">
-                  <img src={ph.img} alt={ph.label} className="w-full h-40 object-cover grayscale group-hover:grayscale-0 transition-all duration-300" />
+                <div key={ph.id} className="bg-surface-container border border-outline-variant/10 overflow-hidden group relative shadow-lg hover:border-primary/30 transition-all">
+                  <div className="relative">
+                    <img src={ph.img} alt={ph.label} className="w-full h-40 object-cover grayscale group-hover:grayscale-0 transition-all duration-300" />
+                    {ph.driveUrl && (
+                      <div className="absolute top-2 left-2 flex items-center gap-1 bg-primary text-on-primary px-1.5 py-0.5 text-[9px] font-mono font-black uppercase tracking-wider">
+                        <span className="material-symbols-outlined text-xs">folder_shared</span>
+                        Drive Link
+                      </div>
+                    )}
+                  </div>
                   <div className="p-3">
                     <div className="text-xs font-bold text-white truncate">{ph.label}</div>
                     <div className="text-[10px] font-mono text-on-surface-variant mt-0.5">{ph.tag} · {ph.year}</div>
+                    {ph.driveUrl && (
+                      <a href={ph.driveUrl} target="_blank" rel="noopener noreferrer" className="text-[9px] font-mono text-primary hover:underline mt-1 block truncate">
+                        {ph.driveUrl}
+                      </a>
+                    )}
                   </div>
-                  <button 
+                  <button
                     onClick={() => setDeleteConfirm({ type: 'photo', id: ph.id })}
                     className="absolute top-2 right-2 p-1.5 bg-black/60 text-on-surface-variant hover:text-error hover:bg-error/20 transition-colors opacity-0 group-hover:opacity-100"
                   >
@@ -553,7 +582,7 @@ const AdminDashboard = () => {
                 <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">PROJECT MANAGEMENT</div>
                 <h2 className="text-4xl font-black tracking-tighter">Projects <span className="text-primary">({projects.length})</span></h2>
               </div>
-              <button 
+              <button
                 onClick={() => setProjectModal({ open: true, data: blankProject(), editing: false })}
                 className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 font-mono font-black text-xs uppercase tracking-widest hover:bg-white transition-colors"
               >
@@ -572,17 +601,17 @@ const AdminDashboard = () => {
                     <div className="font-bold text-white group-hover:text-primary transition-colors">{pr.title}</div>
                     <div className="text-[10px] font-mono text-on-surface-variant mt-1 line-clamp-1">{pr.description}</div>
                     <div className="flex flex-wrap gap-1 mt-2">
-                       {pr.tech.map(t => <span key={t} className="text-[8px] font-mono px-1.5 py-0.5 border border-white/10 text-on-surface-variant bg-white/5">{t}</span>)}
+                      {pr.tech.map(t => <span key={t} className="text-[8px] font-mono px-1.5 py-0.5 border border-white/10 text-on-surface-variant bg-white/5">{t}</span>)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
                       onClick={() => setProjectModal({ open: true, data: { ...pr }, editing: true })}
                       className="p-2 text-on-surface-variant hover:text-white hover:bg-surface-bright transition-colors"
                     >
                       <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => setDeleteConfirm({ type: 'project', id: pr.id })}
                       className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
                     >
@@ -597,9 +626,9 @@ const AdminDashboard = () => {
 
         {/* ── TEAM ── */}
         {tab === 'team' && (
-          <TeamTab 
-            team={team} 
-            onEdit={(m) => setTeamModal({ open: true, data: m, editing: true })} 
+          <TeamTab
+            team={team}
+            onEdit={(m) => setTeamModal({ open: true, data: m, editing: true })}
             onDelete={(id) => setDeleteConfirm({ type: 'team', id })}
             onNew={() => setTeamModal({ open: true, data: blankTeamMember(), editing: false })}
           />
@@ -624,13 +653,13 @@ const AdminDashboard = () => {
               This will permanently delete this {deleteConfirm.type}. This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
-              <button 
-                onClick={() => setDeleteConfirm(null)} 
+              <button
+                onClick={() => setDeleteConfirm(null)}
                 className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   if (deleteConfirm.type === 'member') deleteMemberMutation.mutate(deleteConfirm.id)
                   else if (deleteConfirm.type === 'event') deleteEventMutation.mutate(deleteConfirm.id)
@@ -702,86 +731,86 @@ const AdminDashboard = () => {
                 }
 
                 return (
-                <div key={field}>
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
-                  {type === 'textarea' ? (
-                    <textarea 
-                      value={value}
-                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
-                    />
-                  ) : type === 'select' ? (
-                    <select 
-                      value={value}
-                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
-                    >
-                      {options!.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : type === 'tags' ? (
-                    <input 
-                      type="text"
-                      value={value}
-                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value as unknown as string[] } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
-                    />
-                  ) : type === 'schedule' ? (
-                    <textarea 
-                      placeholder="9:00 AM | Kickoff&#10;10:00 AM | Hacking Starts"
-                      value={value}
-                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, schedule: e.target.value as unknown as Event['schedule'] } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-32 focus:outline-none"
-                    />
-                  ) : type === 'image-upload' ? (
-                    <div className="space-y-2">
-                       <input 
+                  <div key={field}>
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
+                    {type === 'textarea' ? (
+                      <textarea
+                        value={value}
+                        onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
+                      />
+                    ) : type === 'select' ? (
+                      <select
+                        value={value}
+                        onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
+                      >
+                        {options!.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : type === 'tags' ? (
+                      <input
                         type="text"
-                        placeholder="Paste URL or Drive link..."
-                        value={(eventModal.data[field] as string) ?? ''}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (val.includes('drive.google.com/file/d/')) {
-                             const id = val.split('/d/')[1]?.split('/')[0];
-                             if (id) val = `https://lh3.googleusercontent.com/d/${id}`;
-                          }
-                          setEventModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
-                        }}
+                        value={value}
+                        onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value as unknown as string[] } }))}
                         className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                       />
-                      <input 
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setEventModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                    ) : type === 'schedule' ? (
+                      <textarea
+                        placeholder="9:00 AM | Kickoff&#10;10:00 AM | Hacking Starts"
+                        value={value}
+                        onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, schedule: e.target.value as unknown as Event['schedule'] } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-32 focus:outline-none"
                       />
-                    </div>
-                  ) : (
-                    <input 
-                      type={type}
-                      value={(eventModal.data[field] as string | number) ?? ''}
-                      onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
-                    />
-                  )}
-                </div>
+                    ) : type === 'image-upload' ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Paste URL or Drive link..."
+                          value={(eventModal.data[field] as string) ?? ''}
+                          onChange={(e) => {
+                            let val = e.target.value;
+                            if (val.includes('drive.google.com/file/d/')) {
+                              const id = val.split('/d/')[1]?.split('/')[0];
+                              if (id) val = `https://lh3.googleusercontent.com/d/${id}`;
+                            }
+                            setEventModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
+                          }}
+                          className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                        />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setEventModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                        />
+                      </div>
+                    ) : (
+                      <input
+                        type={type}
+                        value={(eventModal.data[field] as string | number) ?? ''}
+                        onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      />
+                    )}
+                  </div>
                 );
               })}
             </div>
             <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
-              <button 
-                onClick={() => setEventModal({ open: false, data: blankEvent(), editing: false })} 
+              <button
+                onClick={() => setEventModal({ open: false, data: blankEvent(), editing: false })}
                 className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   const eventId = eventModal.data.id;
                   const sanitized = {
@@ -859,59 +888,59 @@ const AdminDashboard = () => {
                   const val = challengeModal.data[field];
                   value = Array.isArray(val) ? val.join(', ') : (val as string ?? '');
                 } else if (type === 'timeline') {
-                   const val = challengeModal.data[field];
-                   value = Array.isArray(val) ? val.join('\n') : (val as string ?? '');
+                  const val = challengeModal.data[field];
+                  value = Array.isArray(val) ? val.join('\n') : (val as string ?? '');
                 } else {
                   value = (challengeModal.data[field] as string | number) ?? '';
                 }
 
                 return (
-                <div key={field}>
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
-                  {type === 'textarea' ? (
-                    <textarea 
-                      value={value}
-                      onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
-                    />
-                  ) : type === 'select' ? (
-                    <select 
-                      value={value}
-                      onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
-                    >
-                      {options!.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : type === 'tags' ? (
-                    <input 
-                      type="text"
-                      value={value}
-                      onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value as unknown as string[] } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
-                      placeholder={field === 'tags' ? 'e.g. SQL, Redis, Algorithms' : 'Comma separated values'}
-                    />
-                  ) : type === 'timeline' ? (
-                    <textarea
-                      placeholder={field === 'timeline' ? 'Registration | Enroll before sprint starts\nSprint | Solve within the time window' : '1st | ₹10,000 + XP Boost\n2nd | ₹5,000'}
-                      value={value}
-                      onChange={(e) => setChallengeModal(s => ({
-                        ...s,
-                        data: {
-                          ...s.data,
-                          [field]: e.target.value as unknown as string[],
-                        },
-                      }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-24 focus:outline-none"
-                    />
-                  ) : (
-                    <input 
-                      type={type}
-                      value={value}
-                      onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
-                    />
-                  )}
-                </div>
+                  <div key={field}>
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
+                    {type === 'textarea' ? (
+                      <textarea
+                        value={value}
+                        onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
+                      />
+                    ) : type === 'select' ? (
+                      <select
+                        value={value}
+                        onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
+                      >
+                        {options!.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : type === 'tags' ? (
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value as unknown as string[] } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                        placeholder={field === 'tags' ? 'e.g. SQL, Redis, Algorithms' : 'Comma separated values'}
+                      />
+                    ) : type === 'timeline' ? (
+                      <textarea
+                        placeholder={field === 'timeline' ? 'Registration | Enroll before sprint starts\nSprint | Solve within the time window' : '1st | ₹10,000 + XP Boost\n2nd | ₹5,000'}
+                        value={value}
+                        onChange={(e) => setChallengeModal(s => ({
+                          ...s,
+                          data: {
+                            ...s.data,
+                            [field]: e.target.value as unknown as string[],
+                          },
+                        }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-24 focus:outline-none"
+                      />
+                    ) : (
+                      <input
+                        type={type}
+                        value={value}
+                        onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
+                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                      />
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -919,7 +948,7 @@ const AdminDashboard = () => {
               <button onClick={() => setChallengeModal({ open: false, data: blankChallenge(), editing: false })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   const challengeId = challengeModal.data.id;
                   const sanitized = {
@@ -952,83 +981,106 @@ const AdminDashboard = () => {
 
       {/* ── PHOTO MODAL ── */}
       {photoModal.open && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg">
-            <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
-              <h3 className="font-mono font-black uppercase text-sm">Add Photo</h3>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-6">
+          <div className="bg-[#151c24] border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-outline-variant/10 flex justify-between items-center bg-[#192028]">
+              <h3 className="font-mono font-black uppercase text-sm">Add to Gallery</h3>
               <button onClick={() => setPhotoModal({ open: false, data: blankPhoto() })} className="text-on-surface-variant hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              {([
-                { field: 'label', label: 'Label / Caption', type: 'text' },
-                { field: 'img', label: 'Image URL / Drive Folder Link / Upload', type: 'image-upload' },
-                { field: 'tag', label: 'Tag', type: 'select', options: ['Hackathons', 'Workshops', 'Meetups', 'Competitions'] },
-                { field: 'year', label: 'Year', type: 'text' },
-              ] as Array<{ field: keyof GalleryPhoto; label: string; type: string; options?: string[] }>).map(({ field, label, type, options }) => (
-                <div key={field}>
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
-                  {type === 'select' ? (
-                    <select 
-                      value={(photoModal.data[field] as string) ?? ''}
-                      onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
-                    >
-                      {options!.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : type === 'image-upload' ? (
-                    <div className="space-y-2">
-                       <input 
-                        type="text"
-                        placeholder="Paste image URL or Drive folder link..."
-                        value={(photoModal.data[field] as string) ?? ''}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (val.includes('drive.google.com/file/d/')) {
-                             const id = val.split('/d/')[1]?.split('/')[0];
-                             if (id) val = `https://lh3.googleusercontent.com/d/${id}`;
-                          }
-                          setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
-                        }}
-                        className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
-                      />
-                      <input 
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
-                      />
-                      <p className="text-[10px] font-mono text-on-surface-variant">
-                        Drive folder import: provide a public folder link to auto-add all images from that folder.
-                      </p>
-                    </div>
-                  ) : (
-                    <input 
-                      type="text"
-                      value={(photoModal.data[field] as string) ?? ''}
-                      onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
-                      className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
-                    />
-                  )}
+            <div className="p-5 space-y-4">
+              {/* Mode Toggle */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPhotoModal(s => ({ ...s, data: { ...s.data, driveUrl: '' } }))}
+                  className={`flex-1 py-2.5 text-[10px] font-mono font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 ${!photoModal.data.driveUrl && photoModal.data.driveUrl !== undefined && photoModal.data.driveUrl === '' ? 'bg-primary text-on-primary border-primary' : 'border-white/10 text-on-surface-variant hover:border-primary/50'}`}
+                >
+                  <span className="material-symbols-outlined text-sm">image</span> Direct Image
+                </button>
+                <button
+                  onClick={() => setPhotoModal(s => ({ ...s, data: { ...s.data, driveUrl: s.data.driveUrl || 'https://drive.google.com/' } }))}
+                  className={`flex-1 py-2.5 text-[10px] font-mono font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 ${photoModal.data.driveUrl ? 'bg-primary text-on-primary border-primary' : 'border-white/10 text-on-surface-variant hover:border-primary/50'}`}
+                >
+                  <span className="material-symbols-outlined text-sm">folder_shared</span> Drive Link
+                </button>
+              </div>
+
+              {/* Drive URL field — shown in Drive Link mode */}
+              {photoModal.data.driveUrl !== undefined && photoModal.data.driveUrl !== '' && (
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">Google Drive URL *</label>
+                  <input
+                    type="text"
+                    value={photoModal.data.driveUrl ?? ''}
+                    onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, driveUrl: e.target.value } }))}
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                  />
+                  <p className="text-[10px] font-mono text-primary mt-1">Students will be taken directly to this Drive link when they click the card.</p>
                 </div>
-              ))}
-              {photoModal.data.img && <img src={photoModal.data.img} alt="Preview" className="w-full h-32 object-cover border border-outline-variant/20" />}
+              )}
+
+              {/* Common fields */}
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">Label / Caption *</label>
+                <input type="text" value={photoModal.data.label ?? ''} onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, label: e.target.value } }))} className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none" placeholder="e.g. Hackathon 2026 Photos" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">
+                  {photoModal.data.driveUrl ? 'Thumbnail Image (Upload) *' : 'Image (URL or Upload) *'}
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Paste image URL..."
+                    value={(photoModal.data.img as string) ?? ''}
+                    onChange={(e) => {
+                      let val = e.target.value
+                      if (val.includes('drive.google.com/file/d/')) {
+                        const id = val.split('/d/')[1]?.split('/')[0]
+                        if (id) val = `https://lh3.googleusercontent.com/d/${id}`
+                      }
+                      setPhotoModal(s => ({ ...s, data: { ...s.data, img: val } }))
+                    }}
+                    className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onloadend = () => setPhotoModal(s => ({ ...s, data: { ...s.data, img: reader.result as string } }))
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                    className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                  />
+                  {photoModal.data.img && <img src={photoModal.data.img as string} alt="Preview" className="w-full h-32 object-cover border border-outline-variant/20" />}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">Tag</label>
+                  <select value={photoModal.data.tag ?? 'Workshops'} onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, tag: e.target.value } }))} className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none">
+                    {['Hackathons', 'Workshops', 'Meetups', 'Competitions'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">Year</label>
+                  <input type="text" value={photoModal.data.year ?? '2026'} onChange={(e) => setPhotoModal(s => ({ ...s, data: { ...s.data, year: e.target.value } }))} className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none" />
+                </div>
+              </div>
             </div>
-            <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
-              <button onClick={() => setPhotoModal({ open: false, data: blankPhoto() })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
-                Cancel
-              </button>
-              <button 
+            <div className="p-5 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
+              <button onClick={() => setPhotoModal({ open: false, data: blankPhoto() })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">Cancel</button>
+              <button
                 onClick={() => createPhotoMutation.mutate(photoModal.data)}
-                disabled={createPhotoMutation.isPending}
+                disabled={createPhotoMutation.isPending || !photoModal.data.label || !photoModal.data.img}
                 className="px-4 py-2 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black"
               >
                 Add Photo
@@ -1062,13 +1114,13 @@ const AdminDashboard = () => {
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
                   {type === 'textarea' ? (
-                    <textarea 
+                    <textarea
                       value={(projectModal.data[field] as string) ?? ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
                       className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body resize-none h-20 focus:outline-none"
                     />
                   ) : type === 'select' ? (
-                    <select 
+                    <select
                       value={(projectModal.data[field] as string) ?? ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
                       className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
@@ -1076,7 +1128,7 @@ const AdminDashboard = () => {
                       {options!.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : type === 'tags' ? (
-                     <input 
+                    <input
                       type="text"
                       value={Array.isArray(projectModal.data.tech) ? projectModal.data.tech.join(', ') : ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, tech: e.target.value.split(',').map(t => t.trim()) } }))}
@@ -1085,14 +1137,14 @@ const AdminDashboard = () => {
                     />
                   ) : type === 'image-upload' ? (
                     <div className="space-y-2">
-                       <input 
+                      <input
                         type="text"
                         placeholder="Paste URL..."
                         value={(projectModal.data[field] as string) ?? ''}
                         onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
                         className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                       />
-                      <input 
+                      <input
                         type="file"
                         accept="image/*"
                         onChange={(e) => {
@@ -1107,7 +1159,7 @@ const AdminDashboard = () => {
                       />
                     </div>
                   ) : (
-                    <input 
+                    <input
                       type={type}
                       value={(projectModal.data[field] as string | number) ?? ''}
                       onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: type === 'number' ? Number(e.target.value) : e.target.value } }))}
@@ -1119,13 +1171,13 @@ const AdminDashboard = () => {
               {projectModal.data.img && <img src={projectModal.data.img} alt="Preview" className="w-full h-32 object-cover border border-outline-variant/20" />}
             </div>
             <div className="p-6 border-t border-outline-variant/10 flex gap-3 justify-end bg-[#192028]">
-              <button 
-                onClick={() => setProjectModal({ open: false, data: blankProject(), editing: false })} 
+              <button
+                onClick={() => setProjectModal({ open: false, data: blankProject(), editing: false })}
                 className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   const sanitized = { ...projectModal.data, tech: projectModal.data.tech?.filter(Boolean) }
                   projectModal.editing ? updateProjectMutation.mutate(sanitized) : createProjectMutation.mutate(sanitized)
@@ -1163,7 +1215,7 @@ const AdminDashboard = () => {
                 <div key={field}>
                   <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">{label}</label>
                   {type === 'select' ? (
-                    <select 
+                    <select
                       value={(teamModal.data[field] as string) ?? ''}
                       onChange={(e) => setTeamModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
                       className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none appearance-none"
@@ -1171,15 +1223,15 @@ const AdminDashboard = () => {
                       {options!.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : (
-                    <input 
+                    <input
                       type="text"
                       value={(teamModal.data[field] as string) ?? ''}
-                      onChange={(e) => setTeamModal(s => ({ 
-                        ...s, 
-                        data: { 
-                          ...s.data, 
-                          [field]: e.target.value 
-                        } 
+                      onChange={(e) => setTeamModal(s => ({
+                        ...s,
+                        data: {
+                          ...s.data,
+                          [field]: e.target.value
+                        }
                       }))}
                       className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                     />
@@ -1191,14 +1243,14 @@ const AdminDashboard = () => {
               <div>
                 <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant block mb-1">Photo</label>
                 <div className="space-y-2">
-                  <input 
+                  <input
                     type="text"
                     placeholder="Paste image URL..."
                     value={teamModal.data.image ?? ''}
                     onChange={(e) => setTeamModal(s => ({ ...s, data: { ...s.data, image: e.target.value } }))}
                     className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                   />
-                  <input 
+                  <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => {
@@ -1224,7 +1276,7 @@ const AdminDashboard = () => {
               <button onClick={() => setTeamModal({ open: false, data: blankTeamMember(), editing: false })} className="px-4 py-2 text-xs font-mono uppercase text-on-surface-variant hover:text-white border border-outline-variant/30 hover:border-white/30 transition-colors">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   const sanitized = { ...teamModal.data }
                   teamModal.editing ? updateTeamMutation.mutate(sanitized) : createTeamMutation.mutate(sanitized)
@@ -1239,9 +1291,9 @@ const AdminDashboard = () => {
         </div>
       )}
       {participantsModal?.open && (
-        <ParticipantsModal 
-          {...participantsModal} 
-          onClose={() => setParticipantsModal(null)} 
+        <ParticipantsModal
+          {...participantsModal}
+          onClose={() => setParticipantsModal(null)}
           onSubmit={(winners) => winnersMutation.mutate({ type: participantsModal.type, id: participantsModal.id, winners })}
           isPending={winnersMutation.isPending}
         />
@@ -1350,14 +1402,14 @@ function AnnouncementsTab() {
       </div>
 
       <div className="flex gap-3 mb-8">
-        <input 
-          className="flex-1 bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none" 
-          placeholder="Type a new announcement…" 
+        <input
+          className="flex-1 bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-white font-body focus:outline-none"
+          placeholder="Type a new announcement…"
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && newText.trim() && createMut.mutate(newText.trim())}
         />
-        <button 
+        <button
           onClick={() => newText.trim() && createMut.mutate(newText.trim())}
           disabled={createMut.isPending || !newText.trim()}
           className="px-6 py-3 text-xs font-mono uppercase bg-primary text-on-primary hover:bg-white disabled:opacity-50 transition-colors font-black shadow-lg"
@@ -1373,7 +1425,7 @@ function AnnouncementsTab() {
           anns.map((a) => (
             <div key={a.id} className="px-6 py-4 border-b border-outline-variant/10 last:border-none flex items-center justify-between gap-4 hover:bg-surface-bright/20 transition-colors">
               <div className="flex items-center gap-4 flex-1 min-w-0">
-                <button 
+                <button
                   onClick={() => toggleMut.mutate(a)}
                   className={`shrink-0 w-5 h-5 border-2 flex items-center justify-center transition-colors ${a.active ? 'border-primary bg-primary/20' : 'border-outline-variant'}`}
                 >
@@ -1410,7 +1462,7 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
         .filter(p => p.position !== null && p.position !== undefined)
         .map(p => ({ userId: p.id, position: p.position!, awardXp: p.awardXp || 0 }))
         .sort((a, b) => a.position - b.position)
-      
+
       if (existingWinners.length > 0) {
         setWinners(existingWinners)
       }
@@ -1464,8 +1516,8 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
                 <div className="h-full flex items-center justify-center font-mono text-xs text-on-surface-variant">No participants yet.</div>
               ) : (
                 participants.map(p => (
-                  <div 
-                    key={p.id} 
+                  <div
+                    key={p.id}
                     draggable
                     onDragStart={() => setDraggedUser(p)}
                     onDragEnd={() => setDraggedUser(null)}
@@ -1480,7 +1532,7 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
                         <div className="text-[10px] font-mono text-on-surface-variant uppercase">{p.usn || 'No USN'}</div>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => addWinner(p)}
                       disabled={winners.some(w => w.userId === p.id)}
                       className="opacity-0 group-hover:opacity-100 disabled:opacity-30 p-2 text-primary hover:bg-primary/20 transition-all"
@@ -1494,7 +1546,7 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
           </div>
 
           {/* Winner assignment */}
-          <div 
+          <div
             className={`w-1/2 flex flex-col transition-all ${draggedUser ? 'bg-primary/5 border-2 border-dashed border-primary/40 shadow-inner shadow-primary/10' : 'bg-black/20 border-l border-white/5'}`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -1527,7 +1579,7 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
                       <div className="flex items-end gap-3">
                         <div className="flex-1">
                           <label className="text-[9px] font-mono uppercase text-on-surface-variant block mb-1">Position / Rank</label>
-                          <input 
+                          <input
                             type="number"
                             value={w.position}
                             onChange={(e) => setWinners(winners.map(win => win.userId === w.userId ? { ...win, position: Number(e.target.value) } : win))}
@@ -1536,7 +1588,7 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
                         </div>
                         <div className="flex-1">
                           <label className="text-[9px] font-mono uppercase text-on-surface-variant block mb-1">Award XP</label>
-                          <input 
+                          <input
                             type="number"
                             value={w.awardXp}
                             onChange={(e) => updateAward(w.userId, Number(e.target.value))}
@@ -1551,7 +1603,7 @@ function ParticipantsModal({ type, id, title, onClose, onSubmit, isPending }: { 
               )}
             </div>
             <div className="p-4 border-t border-white/5 bg-white/5">
-              <button 
+              <button
                 onClick={() => onSubmit(winners)}
                 disabled={winners.length === 0 || isPending}
                 className="w-full py-3 bg-primary text-on-primary font-black font-mono text-xs uppercase tracking-widest hover:bg-white disabled:opacity-50 transition-all shadow-xl shadow-primary/10"
