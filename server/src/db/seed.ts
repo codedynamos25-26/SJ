@@ -7,15 +7,7 @@ import bcrypt from 'bcryptjs'
 import { db, users, events, challenges, projects, teamMembers, announcements } from './index'
 
 async function seed() {
-  console.log('Cleaning up database tables...')
-
-  // Delete all existing data from all tables
-  await db.delete(events)
-  await db.delete(challenges)
-  await db.delete(projects)
-  await db.delete(teamMembers)
-  await db.delete(announcements)
-  await db.delete(users)
+  console.log('Checking database and seeding data (non-destructive)...')
 
   console.log('Seeding admin user...')
   await db.insert(users).values([
@@ -42,10 +34,9 @@ async function seed() {
   })
 
   console.log('Seeding requested team members...')
-  const tmNow = Date.now()
   await db.insert(teamMembers).values([
     {
-      id: `tm-${tmNow}-1`,
+      id: 'tm-1',
       name: 'Dr. G. Shramila',
       role: 'Faculty Coordinator',
       dept: 'Core',
@@ -55,7 +46,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-2`,
+      id: 'tm-2',
       name: 'Sujal Jondhale',
       role: 'President',
       dept: 'Core',
@@ -65,7 +56,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-3`,
+      id: 'tm-3',
       name: 'Jayaduran T',
       role: 'Vice President',
       dept: 'Core',
@@ -75,7 +66,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-4`,
+      id: 'tm-4',
       name: 'Sai Niranjanaa D',
       role: 'Club Secretary',
       dept: 'Core',
@@ -85,7 +76,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-5`,
+      id: 'tm-5',
       name: 'Abhishek C k',
       role: 'Technical Lead',
       dept: 'Technical',
@@ -95,7 +86,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-6`,
+      id: 'tm-6',
       name: 'Sidhant Saswat',
       role: 'Technical Associate',
       dept: 'Technical',
@@ -105,7 +96,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-7`,
+      id: 'tm-7',
       name: 'Kavin',
       role: 'Marketing Team',
       dept: 'Marketing',
@@ -115,7 +106,7 @@ async function seed() {
       image: null
     },
     {
-      id: `tm-${tmNow}-8`,
+      id: 'tm-8',
       name: 'Dikshith',
       role: 'Marketing Team',
       dept: 'Marketing',
@@ -124,9 +115,11 @@ async function seed() {
       linkedinUrl: null,
       image: null
     }
-  ])
+  ]).onConflictDoNothing({
+    target: teamMembers.id
+  })
 
-  console.log('✅ Database cleaned and seeded successfully.')
+  console.log('✅ Database seeded safely.')
   process.exit(0)
 }
 
