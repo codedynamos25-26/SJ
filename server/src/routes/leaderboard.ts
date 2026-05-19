@@ -10,6 +10,7 @@ router.get('/', async (_req, res) => {
     .select({
       id:           users.id,
       name:         users.name,
+      email:        users.email,
       usn:          users.usn,
       xp:           users.xp,
       rank:         users.rank,

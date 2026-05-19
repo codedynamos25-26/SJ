@@ -6,8 +6,8 @@ import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute, AdminRoute } from './components/ui/ProtectedRoute'
 import CustomCursor from './components/ui/CustomCursor'
 import HomePage from './pages/HomePage'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
+import UnifiedAuth from './pages/UnifiedAuth'
+import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/admin/Dashboard'
 import EventsPage from './pages/EventsPage'
 import ChallengesPage from './pages/ChallengesPage'
@@ -32,8 +32,10 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<UnifiedAuth />} />
+            <Route path="/signup" element={<UnifiedAuth />} />
+            <Route path="/auth/google" element={<UnifiedAuth />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/events" element={<EventsPage />} />

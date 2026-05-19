@@ -21,7 +21,7 @@ async function seed() {
   await db.insert(users).values([
     {
       id: 'u1',
-      email: 'admin@codedynamos.io',
+      email: 'adminsj@codedynamos.club',
       name: 'Admin',
       role: 'admin',
       passwordHash: bcrypt.hashSync('sujaljaya$2025yr', 10),

@@ -2,12 +2,12 @@ import bcrypt from 'bcryptjs'
 import type { User } from '../types'
 
 // Passwords are hashed with bcrypt (cost 10)
-// Plain passwords for dev: admin@codedynamos.io → Admin@1234, others → Member@1234
+// Plain passwords for dev: adminsj@codedynamos.club → Admin@1234, others → Member@1234
 
 export const users: User[] = [
   {
     id: 'u1',
-    email: 'admin@codedynamos.io',
+    email: 'adminsj@codedynamos.club',
     name: 'JAYA',
     role: 'admin',
     passwordHash: bcrypt.hashSync('sujaljaya$2025yr', 10),

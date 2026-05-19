@@ -1,10 +1,14 @@
 import { Router } from 'express'
+import { OAuth2Client } from 'google-auth-library'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { Resend } from 'resend'
 import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '212640393402-ud3mar6rlp3rrjg1n8cgvepshpfb7jsn.apps.googleusercontent.com'
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID)
 
 // Lazy-initialize Resend so the server doesn't crash if the key is missing at startup
 function getResend(): Resend {
@@ -33,6 +37,11 @@ router.post('/login', async (req, res): Promise<void> => {
   const valid = bcrypt.compareSync(password, user.passwordHash)
   if (!valid) {
     res.status(401).json({ error: 'Invalid credentials' })
+    return
+  }
+
+  if (user.role !== 'admin') {
+    res.status(403).json({ error: 'Access restricted to administrators only. Please authenticate via Google SSO.' })
     return
   }
 
@@ -197,6 +206,125 @@ router.post('/reset-password', async (req, res): Promise<void> => {
   await db.update(users).set({ passwordHash, resetToken: null, resetTokenExpiry: null }).where(eq(users.id, user.id))
 
   res.json({ message: 'Password has been reset successfully' })
+})
+
+// POST /api/auth/google — Verify Google ID token and login/signup (validates @cmr.edu.in)
+router.post('/google', async (req, res): Promise<void> => {
+  const { credential, usn, department, year, semester, track } = req.body as {
+    credential?: string
+    usn?: string
+    department?: string
+    year?: string
+    semester?: string
+    track?: string
+  }
+
+  if (!credential) {
+    res.status(400).json({ error: 'Google credential token is required' })
+    return
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    })
+    const payload = ticket.getPayload()
+    if (!payload) {
+      res.status(400).json({ error: 'Invalid Google token payload' })
+      return
+    }
+
+    const { email, name, sub: googleId } = payload
+    if (!email) {
+      res.status(400).json({ error: 'Email not provided by Google' })
+      return
+    }
+
+    const emailLower = email.toLowerCase()
+    if (!emailLower.endsWith('@cmr.edu.in')) {
+      res.status(400).json({ error: 'Only student accounts ending with @cmr.edu.in are allowed to login or sign up.' })
+      return
+    }
+
+    // Check if user exists
+    let [user] = await db.select().from(users).where(eq(users.email, emailLower))
+
+    if (user) {
+      // User exists, update googleId if not set
+      if (!user.googleId) {
+        await db.update(users).set({ googleId }).where(eq(users.id, user.id))
+        user.googleId = googleId
+      }
+      
+      const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role as 'member' | 'admin' })
+      const leetcodeScore = Math.floor((user.leetcodeSolved ?? 0) * 0.4 + (user.leetcodeRating ?? 0) * 0.6)
+      
+      res.json({
+        token,
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          name: user.name, 
+          role: user.role, 
+          xp: user.xp + leetcodeScore, 
+          rank: user.rank, 
+          usn: user.usn, 
+          department: user.department, 
+          year: user.year, 
+          semester: user.semester, 
+          githubUrl: user.githubUrl, 
+          leetcodeProfile: user.leetcodeProfile, 
+          leetcodeSolved: user.leetcodeSolved, 
+          track: user.track 
+        },
+      })
+      return
+    }
+
+    // Auto-create new user securely on first Google SSO sign-in (one-click, zero data-entry login)
+    const id = `u${Date.now()}`
+    const [newUser] = await db.insert(users).values({
+      id,
+      email: emailLower,
+      name: name || 'Google User',
+      role: 'member',
+      googleId,
+      usn: '',
+      department: 'N/A',
+      year: 'N/A',
+      semester: 'N/A',
+      xp: 0,
+      rank: 0,
+      track: 'Fullstack',
+    }).returning()
+
+    const token = signToken({ userId: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role as 'member' | 'admin' })
+
+    res.status(201).json({
+      token,
+      user: { 
+        id: newUser.id, 
+        email: newUser.email, 
+        name: newUser.name, 
+        role: newUser.role, 
+        xp: newUser.xp, 
+        rank: newUser.rank, 
+        usn: newUser.usn, 
+        department: newUser.department, 
+        year: newUser.year, 
+        semester: newUser.semester, 
+        githubUrl: newUser.githubUrl, 
+        leetcodeProfile: newUser.leetcodeProfile, 
+        leetcodeSolved: newUser.leetcodeSolved, 
+        track: newUser.track 
+      },
+    })
+
+  } catch (error: any) {
+    console.error('Google Auth Error:', error)
+    res.status(401).json({ error: 'Failed to verify Google token securely. Please try again.' })
+  }
 })
 
 export default router

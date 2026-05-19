@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface LeaderEntry {
   id: string
   name: string
+  email?: string
   xp: number
   rank: number
   track: string
@@ -247,8 +248,9 @@ const LeaderboardPage = () => {
                               </div>
                               <div>
                                 <div className="font-bold text-white group-hover:text-primary transition-colors">{e.name}</div>
+                                <div className="text-[10px] font-mono text-white/40">{e.email}</div>
                                 {e.leetcodeProfile && view === 'leetcode' && (
-                                  <div className="text-[10px] font-mono text-white/40">@{e.leetcodeProfile}</div>
+                                  <div className="text-[9px] font-mono text-orange-400/80">@{e.leetcodeProfile}</div>
                                 )}
                               </div>
                             </div>
@@ -324,12 +326,20 @@ const LeaderboardPage = () => {
                 <span className="text-sm font-bold text-white">{selectedStudent.usn || '—'}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <span className="text-xs font-mono text-white/40 uppercase">Email</span>
+                <span className="text-sm font-bold text-white">{selectedStudent.email || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <span className="text-xs font-mono text-white/40 uppercase">Track</span>
                 <span className="text-sm font-bold text-white">{selectedStudent.track || '—'}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <span className="text-xs font-mono text-white/40 uppercase">Club XP</span>
                 <span className="text-sm font-bold text-primary">{selectedStudent.xp.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <span className="text-xs font-mono text-white/40 uppercase">Best Rank Achieved</span>
+                <span className="text-sm font-bold text-[#dbb8ff]">#{selectedStudent.rank || 1} (2026)</span>
               </div>
               {selectedStudent.githubUrl && (
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">

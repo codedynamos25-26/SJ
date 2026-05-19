@@ -244,7 +244,7 @@ const TeamPage = () => {
         <div className="max-w-[1440px] mx-auto relative">
           <div className="text-[11px] font-black tracking-[0.5em] text-primary uppercase mb-4 font-['Space_Mono']">OPERATOR PROFILES</div>
           <h1 className="text-7xl md:text-8xl font-black italic uppercase tracking-tighter mb-6 font-['Orbitron'] leading-none">
-            The<br /><span className="text-primary">Team</span>
+            The <span className="text-primary">Team</span>
           </h1>
           <div className="h-1 w-32 bg-gradient-to-r from-primary via-secondary to-transparent mb-6" />
           <p className="text-on-surface-variant font-body max-w-lg text-sm leading-relaxed">
@@ -252,6 +252,65 @@ const TeamPage = () => {
           </p>
         </div>
       </section>
+
+      {/* Category Filter */}
+      {!isLoading && team.length > 0 && (
+        <section className="sticky top-[72px] z-30 bg-[#0A0A0A]/80 backdrop-blur-md border-b border-white/5 px-6 py-4">
+          <div className="max-w-[1440px] mx-auto flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-sm">filter_list</span>
+              <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Filter by Category</span>
+            </div>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-full px-6 py-2 text-[10px] font-mono font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all min-w-[200px] justify-between"
+              >
+                <span>{activeCategory}</span>
+                <motion.span 
+                  animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+                  className="material-symbols-outlined text-xs text-white/40"
+                >
+                  expand_more
+                </motion.span>
+              </button>
+
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 bg-transparent" 
+                      onClick={() => setIsDropdownOpen(false)} 
+                    />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute top-full left-0 mt-2 w-full bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-2 space-y-1"
+                    >
+                      {['All', ...Object.keys(grouped)].filter((v, i, a) => a.indexOf(v) === i).map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            setActiveCategory(cat)
+                            setIsDropdownOpen(false)
+                          }}
+                          className={`w-full text-left px-4 py-2 text-[9px] font-mono font-bold uppercase tracking-widest rounded-xl transition-colors
+                            ${activeCategory === cat ? 'bg-primary text-black' : 'text-white/60 hover:bg-white/5 hover:text-white'}
+                          `}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Loading */}
       {isLoading && (
@@ -268,63 +327,6 @@ const TeamPage = () => {
           <p className="font-mono text-white/30 text-sm">No team members registered yet.</p>
         </div>
       )}
-
-      {/* Category Filter */}
-      <section className="sticky top-[72px] z-30 bg-[#0A0A0A]/80 backdrop-blur-md border-b border-white/5 px-6 py-4">
-        <div className="max-w-[1440px] mx-auto flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-sm">filter_list</span>
-            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Filter by Category</span>
-          </div>
-          
-          <div className="relative">
-            <button 
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-full px-6 py-2 text-[10px] font-mono font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all min-w-[200px] justify-between"
-            >
-              <span>{activeCategory}</span>
-              <motion.span 
-                animate={{ rotate: isDropdownOpen ? 180 : 0 }}
-                className="material-symbols-outlined text-xs text-white/40"
-              >
-                expand_more
-              </motion.span>
-            </button>
-
-            <AnimatePresence>
-              {isDropdownOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
-                    onClick={() => setIsDropdownOpen(false)} 
-                  />
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute top-full left-0 mt-2 w-full bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 p-2 space-y-1"
-                  >
-                    {['All', ...Object.keys(grouped)].filter((v, i, a) => a.indexOf(v) === i).map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => {
-                          setActiveCategory(cat)
-                          setIsDropdownOpen(false)
-                        }}
-                        className={`w-full text-left px-4 py-2 text-[9px] font-mono font-bold uppercase tracking-widest rounded-xl transition-colors
-                          ${activeCategory === cat ? 'bg-primary text-black' : 'text-white/60 hover:bg-white/5 hover:text-white'}
-                        `}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </section>
 
       {/* Category Sections */}
       {!isLoading && (

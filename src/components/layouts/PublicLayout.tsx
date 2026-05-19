@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -21,9 +21,26 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
   const { user, logout } = useAuth()
 
   const [navVisible, setNavVisible] = useState(true)
+  const [lastScrollY, setLastScrollY] = useState(0)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      if (currentScrollY < 50) {
+        setNavVisible(true)
+      } else if (currentScrollY > lastScrollY) {
+        setNavVisible(false)
+      } else {
+        setNavVisible(true)
+      }
+      setLastScrollY(currentScrollY)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [lastScrollY])
+
   const [mobileOpen, setMobileOpen] = useState(false)
   const [announcements, setAnnouncements] = useState<{ id: string; text: string }[]>([])
-  const lastScrollY = useRef(0)
 
   useEffect(() => {
     import('../../lib/api').then(({ api }) => {
@@ -35,20 +52,6 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
         })
         .catch(() => setAnnouncements([{ id: 'err', text: '📢 ANNOUNCING WEB WEAVE \'26: Two-Day Hybrid Web Design Event • April 8th & 9th 2026 • Register Now!' }]))
     })
-  }, [])
-
-  useEffect(() => {
-    const onScroll = () => {
-      const current = window.scrollY
-      if (current > lastScrollY.current && current > 80) {
-        setNavVisible(false)   // scrolling down — hide
-      } else if (current < lastScrollY.current) {
-        setNavVisible(true)    // scrolling up — show
-      }
-      lastScrollY.current = current
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   // close mobile menu on route change
@@ -64,15 +67,15 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
         navVisible ? 'translate-y-0' : '-translate-y-full'
       }`}>
         {/* ── Announcement Ticker ─────────────────────────────────── */}
-        <div className="w-full bg-primary text-on-primary py-2 overflow-hidden relative">
+        <div className="w-full bg-[#050505] border-b border-white/10 py-2.5 overflow-hidden relative shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
           <div className="ticker-scroll flex items-center">
             {[0, 1].map(i => (
-              <span key={i} className="font-['Space_Mono'] text-[11px] font-bold uppercase tracking-[0.3em] whitespace-nowrap px-16">
+              <span key={i} className="font-['Space_Grotesk'] text-[11.5px] font-black uppercase tracking-[0.15em] text-primary whitespace-nowrap px-16 flex items-center gap-3">
                 {announcements.map((a, idx) => (
-                  <span key={a.id}>
-                    {a.text}
+                  <span key={a.id} className="flex items-center gap-4">
+                    <span className="text-[#d3ef57] drop-shadow-[0_0_8px_rgba(211,239,87,0.5)]">{a.text}</span>
                     {idx < announcements.length - 1 && (
-                      <span className="mx-8 opacity-60">◆</span>
+                      <span className="text-white/25 select-none font-sans">//</span>
                     )}
                   </span>
                 ))}
@@ -83,7 +86,7 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
 
         {/* ── Top Nav ─────────────────────────────────────────────── */}
         <nav className="relative" style={{ top: '0px' }}>
-          <div className="mx-4 md:mx-6 lg:mx-8 mt-2 bg-black/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl">
+          <div className="mx-4 md:mx-6 lg:mx-8 mt-2 bg-gradient-to-b from-white/[0.08] to-black/[0.35] backdrop-blur-xl border border-white/[0.1] rounded-3xl shadow-2xl">
           <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-3 flex justify-between items-center gap-4">
 
             {/* Logo + Code Dynamos */}
@@ -97,12 +100,12 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
             </div>
 
             {/* Desktop Nav Links */}
-            <div className="hidden lg:flex items-center gap-1 flex-wrap justify-center flex-1">
+            <div className="hidden lg:flex items-center gap-0.5 flex-nowrap justify-center flex-1">
               {navLinks.map(({ label, to }) => (
                 <Link
                   key={to}
                   to={to}
-                  className={`relative px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-all duration-200 overflow-hidden group ${
+                  className={`relative px-3 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden group ${
                     pathname === to
                       ? 'text-primary'
                       : 'text-white/60 hover:text-white'
@@ -146,20 +149,12 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
                   />
                 </>
               ) : (
-                <>
-                  <Link
-                    to="/login"
-                    className="hidden md:block text-xs font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors px-3 py-1.5"
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    to="/signup"
-                    className="bg-primary px-4 py-2 rounded-md text-on-primary font-black text-[10px] uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all"
-                  >
-                    Join
-                  </Link>
-                </>
+                <Link
+                  to="/signup"
+                  className="bg-primary px-4 py-1.5 rounded-md text-on-primary font-black text-[10px] uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Join
+                </Link>
               )}
 
               {/* Mobile hamburger */}
@@ -200,10 +195,7 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
                     <button onClick={handleLogout} className="text-left px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-widest text-red-400 hover:bg-red-400/10">Logout</button>
                   </>
                 ) : (
-                  <>
-                    <Link to="/login" className="px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5">Login</Link>
-                    <Link to="/signup" className="px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-widest text-primary hover:bg-primary/10">Join Registry</Link>
-                  </>
+                  <Link to="/signup" className="px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-widest text-primary hover:bg-primary/10">Join Registry</Link>
                 )}
               </div>
             </div>

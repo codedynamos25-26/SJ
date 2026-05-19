@@ -108,9 +108,8 @@ router.post('/leetcode', async (req, res): Promise<void> => {
     contestRating,
   })
 })
-
 router.put('/profile', async (req, res): Promise<void> => {
-  const { githubUrl, leetcodeProfile, leetcodeSolved, leetcodeRating, year, semester, track } = req.body as {
+  const { githubUrl, leetcodeProfile, leetcodeSolved, leetcodeRating, year, semester, track, usn, name, department } = req.body as {
     githubUrl?: string
     leetcodeProfile?: string
     leetcodeSolved?: number
@@ -118,6 +117,9 @@ router.put('/profile', async (req, res): Promise<void> => {
     year?: string
     semester?: string
     track?: string
+    usn?: string
+    name?: string
+    department?: string
   }
 
   const updates: Partial<typeof users.$inferInsert> = {}
@@ -129,6 +131,9 @@ router.put('/profile', async (req, res): Promise<void> => {
   if (typeof year === 'string') updates.year = year.trim()
   if (typeof semester === 'string') updates.semester = semester.trim()
   if (typeof track === 'string') updates.track = track.trim()
+  if (typeof usn === 'string') updates.usn = usn.trim()
+  if (typeof name === 'string') updates.name = name.trim()
+  if (typeof department === 'string') updates.department = department.trim()
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: 'No valid profile fields provided' })

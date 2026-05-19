@@ -23,7 +23,7 @@ const DashboardPage = () => {
   const { logout, user: authUser } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [editingField, setEditingField] = useState<'year' | 'semester' | 'track' | null>(null)
+  const [editingField, setEditingField] = useState<'year' | 'semester' | 'track' | 'usn' | 'department' | 'name' | null>(null)
   const [draftValue, setDraftValue] = useState('')
 
   const updateProfile = useMutation({
@@ -45,7 +45,7 @@ const DashboardPage = () => {
     },
   })
 
-  const startEdit = (field: 'year' | 'semester' | 'track', current?: string) => {
+  const startEdit = (field: 'year' | 'semester' | 'track' | 'usn' | 'department' | 'name', current?: string) => {
     setEditingField(field)
     setDraftValue(current ?? '')
   }
@@ -124,11 +124,31 @@ const DashboardPage = () => {
         {/* Welcome */}
         <section className="mb-10">
           <div className="text-[10px] font-mono uppercase tracking-[0.4em] text-on-surface-variant mb-2">OPERATOR HUB</div>
-          <h1 className="text-4xl font-black tracking-tighter">
-            Welcome back, <span className="text-primary">{user.name.split(' ')[0]}</span>
-          </h1>
+          {editingField === 'name' ? (
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                value={draftValue}
+                onChange={(e) => setDraftValue(e.target.value)}
+                placeholder="Full Name"
+                className="font-headline font-black text-4xl bg-transparent border-b border-primary/50 focus:outline-none placeholder:text-on-surface-variant/30 text-white"
+              />
+              <button onClick={saveEdit} className="text-primary p-2">
+                <span className="material-symbols-outlined text-xl">check</span>
+              </button>
+              <button onClick={cancelEdit} className="text-error p-2">
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+          ) : (
+            <h1 className="text-4xl font-black tracking-tighter flex items-center gap-2">
+              Welcome back, <span className="text-primary">{user.name}</span>
+              <button onClick={() => startEdit('name', user.name)} className="p-1 rounded-full text-primary hover:text-white transition-colors" title="Edit Full Name">
+                <span className="material-symbols-outlined text-lg">edit</span>
+              </button>
+            </h1>
+          )}
           <p className="text-on-surface-variant font-body mt-1 text-sm">
-            Season 3 · Rank #{user.rank} · {user.xp.toLocaleString()} XP
+            2026 Season · Rank #{user.rank} · {user.xp.toLocaleString()} XP
           </p>
         </section>
 
@@ -147,6 +167,14 @@ const DashboardPage = () => {
                   value={draftValue}
                   onChange={(e) => setDraftValue(e.target.value.toUpperCase())}
                   placeholder="FULLSTACK"
+                  className="text-2xl font-black bg-transparent border-b border-outline-variant/40 focus:outline-none uppercase placeholder:text-on-surface-variant/50"
+                  style={{ color: s.accent }}
+                />
+              ) : s.label === 'Department' && editingField === 'department' ? (
+                <input
+                  value={draftValue}
+                  onChange={(e) => setDraftValue(e.target.value.toUpperCase())}
+                  placeholder="CSE"
                   className="text-2xl font-black bg-transparent border-b border-outline-variant/40 focus:outline-none uppercase placeholder:text-on-surface-variant/50"
                   style={{ color: s.accent }}
                 />
@@ -170,6 +198,22 @@ const DashboardPage = () => {
                   </button>
                 )
               )}
+              {s.label === 'Department' && (
+                editingField === 'department' ? (
+                  <div className="absolute top-2 right-2 flex items-center gap-1">
+                    <button onClick={saveEdit} className="text-primary">
+                      <span className="material-symbols-outlined text-sm">check</span>
+                    </button>
+                    <button onClick={cancelEdit} className="text-error">
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => startEdit('department', user.department)} className="absolute top-2 right-2 text-primary z-10">
+                    <span className="material-symbols-outlined text-sm">edit</span>
+                  </button>
+                )
+              )}
             </div>
           ))}
         </section>
@@ -179,9 +223,29 @@ const DashboardPage = () => {
           <div className="flex justify-between items-start mb-4">
             <div>
               <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant mb-1">Student Profile Validation</div>
-              <div className="font-headline font-black">
-                {user.usn || 'UNVERIFIED IDENTIFIER'}
-              </div>
+              {editingField === 'usn' ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    value={draftValue}
+                    onChange={(e) => setDraftValue(e.target.value.toUpperCase())}
+                    placeholder="1CR22CS001"
+                    className="font-headline font-black text-xl bg-transparent border-b border-primary/50 focus:outline-none uppercase placeholder:text-on-surface-variant/30 text-white"
+                  />
+                  <button onClick={saveEdit} className="text-primary p-1">
+                    <span className="material-symbols-outlined text-base">check</span>
+                  </button>
+                  <button onClick={cancelEdit} className="text-error p-1">
+                    <span className="material-symbols-outlined text-base">close</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="font-headline font-black flex items-center">
+                  {user.usn || 'UNVERIFIED IDENTIFIER'}
+                  <button onClick={() => startEdit('usn', user.usn)} className="ml-2 p-1 rounded-full text-primary hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-base">edit</span>
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-4">
               {editingField === 'year' ? (
@@ -234,9 +298,13 @@ const DashboardPage = () => {
               )}
             </div>
           </div>
-          <div className="flex justify-between text-[10px] font-mono text-on-surface-variant mt-2">
-             <span>{user.email}</span>
-             {user.githubUrl && <a href={user.githubUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">GitHub Profile</a>}
+          <div className="flex justify-between items-center text-[10px] font-mono text-on-surface-variant mt-4 pt-3 border-t border-outline-variant/10">
+             <div className="flex flex-wrap items-center gap-3">
+               <span>EMAIL: <span className="text-white font-bold">{user.email}</span></span>
+               <span className="hidden md:inline w-px h-3 bg-white/15" />
+               <span>BEST RANK ACHIEVED: <span className="text-[#dbb8ff] font-bold">#{user.rank || 1} (2026)</span></span>
+             </div>
+             {user.githubUrl && <a href={user.githubUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold uppercase tracking-wider">GitHub Profile</a>}
           </div>
         </section>
 
