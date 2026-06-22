@@ -19,6 +19,20 @@ function getResend(): Resend {
 
 const router = Router()
 
+const isProd = process.env.NODE_ENV === 'production'
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' as const : 'lax' as const,
+  maxAge: 24 * 60 * 60 * 1000 // 24 hours
+}
+
+// POST /api/auth/logout
+router.post('/logout', (_req, res) => {
+  res.clearCookie('token', cookieOptions).json({ message: 'Logged out successfully' })
+})
+
 // POST /api/auth/login
 router.post('/login', async (req, res): Promise<void> => {
   const { email, password } = req.body as { email?: string; password?: string }
@@ -49,8 +63,7 @@ router.post('/login', async (req, res): Promise<void> => {
 
   const leetcodeScore = Math.floor((user.leetcodeSolved ?? 0) * 0.4 + (user.leetcodeRating ?? 0) * 0.6)
 
-  res.json({
-    token,
+  res.cookie('token', token, cookieOptions).json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp + leetcodeScore, rank: user.rank, usn: user.usn, department: user.department, year: user.year, semester: user.semester, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track },
   })
 })
@@ -103,8 +116,7 @@ router.post('/signup', async (req, res): Promise<void> => {
 
   const token = signToken({ userId: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role as 'member' | 'admin' })
 
-  res.status(201).json({
-    token,
+  res.status(201).cookie('token', token, cookieOptions).json({
     user: { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, xp: newUser.xp, rank: newUser.rank, usn: newUser.usn, department: newUser.department, year: newUser.year, semester: newUser.semester, githubUrl: newUser.githubUrl, leetcodeProfile: newUser.leetcodeProfile, leetcodeSolved: newUser.leetcodeSolved, track: newUser.track },
   })
 })
@@ -260,8 +272,7 @@ router.post('/google', async (req, res): Promise<void> => {
       const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role as 'member' | 'admin' })
       const leetcodeScore = Math.floor((user.leetcodeSolved ?? 0) * 0.4 + (user.leetcodeRating ?? 0) * 0.6)
       
-      res.json({
-        token,
+      res.cookie('token', token, cookieOptions).json({
         user: { 
           id: user.id, 
           email: user.email, 
@@ -301,8 +312,7 @@ router.post('/google', async (req, res): Promise<void> => {
 
     const token = signToken({ userId: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role as 'member' | 'admin' })
 
-    res.status(201).json({
-      token,
+    res.status(201).cookie('token', token, cookieOptions).json({
       user: { 
         id: newUser.id, 
         email: newUser.email, 

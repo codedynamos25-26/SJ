@@ -2,6 +2,7 @@ import express from 'express' // v2
 import cors from 'cors'
 import helmet from 'helmet'
 import dns from 'dns'
+import cookieParser from 'cookie-parser'
 
 // Force Node 18+ to prefer IPv4 for DNS resolution.
 // This fixes ENETUNREACH errors for smtp.gmail.com on Render.
@@ -39,6 +40,7 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(cookieParser())
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))

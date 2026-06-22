@@ -13,29 +13,23 @@ const baseURL = cleanApiUrl
 export const api = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
-})
-
-// Attach JWT from localStorage on every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('cd_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
+  withCredentials: true,
 })
 
 // On 401, clear stored credentials and redirect to login
-// BUT skip this for auth endpoints themselves (login/signup) so their
-// error messages can reach the component catch blocks
+// BUT skip this for auth endpoints themselves (login/signup/me) so their
+// error messages can reach the component catch blocks without a hard redirect loop
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     const url: string = err.config?.url ?? ''
-    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/signup')
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/signup') || url.includes('/auth/me')
+    
     if (err.response?.status === 401 && !isAuthEndpoint) {
-      localStorage.removeItem('cd_token')
       localStorage.removeItem('cd_user')
-      window.location.href = '/login'
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }

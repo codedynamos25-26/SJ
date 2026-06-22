@@ -208,6 +208,39 @@ const applyExpirationStatus = <T extends { endsAt?: Date | string | null; status
 const router = Router()
 router.use(authenticate, adminOnly)
 
+// ── Database Backup ────────────────────────────────────────────────────────
+router.get('/backup', async (_req, res) => {
+  try {
+    const allUsers = await db.select().from(users)
+    const allEvents = await db.select().from(events)
+    const allChallenges = await db.select().from(challenges)
+    const allTeam = await db.select().from(teamMembers)
+    const allGallery = await db.select().from(gallery)
+    const allProjects = await db.select().from(projects)
+    const allAnnouncements = await db.select().from(announcements)
+
+    const backup = {
+      timestamp: new Date().toISOString(),
+      data: {
+        users: allUsers,
+        events: allEvents,
+        challenges: allChallenges,
+        teamMembers: allTeam,
+        gallery: allGallery,
+        projects: allProjects,
+        announcements: allAnnouncements
+      }
+    }
+
+    res.setHeader('Content-Disposition', 'attachment; filename="code-dynamos-db-backup.json"')
+    res.setHeader('Content-Type', 'application/json')
+    res.send(JSON.stringify(backup, null, 2))
+  } catch (error) {
+    console.error('Backup failed:', error)
+    res.status(500).json({ error: 'Failed to generate backup' })
+  }
+})
+
 // ── Stats ──────────────────────────────────────────────────────────────────
 router.get('/stats', async (_req, res) => {
   const [{ totalMembers }] = await db.select({ totalMembers: sql<number>`count(*)` }).from(users)

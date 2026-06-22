@@ -121,6 +121,23 @@ const AdminDashboard = () => {
 
   const handleLogout = () => { logout(); navigate('/login') }
 
+  const handleBackup = async () => {
+    try {
+      const res = await api.get('/admin/backup', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'code-dynamos-db-backup.json')
+      document.body.appendChild(link)
+      link.click()
+      link.parentNode?.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Backup download failed', error)
+      alert('Failed to download database backup.')
+    }
+  }
+
   // Queries
   const { data: members = [] } = useQuery<Member[]>({ queryKey: ['admin-members'], queryFn: () => api.get('/admin/members').then(r => r.data), enabled: tab === 'members' })
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ['admin-events'], queryFn: () => api.get('/admin/events').then(r => r.data), enabled: tab === 'events' })
@@ -305,9 +322,16 @@ const AdminDashboard = () => {
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
-        <div className="text-xs font-mono uppercase tracking-widest text-on-surface-variant">
+        <div className="flex-1 text-xs font-mono uppercase tracking-widest text-on-surface-variant">
           Admin / <span className="text-white capitalize">{tab}</span>
         </div>
+        <button 
+          onClick={handleBackup} 
+          className="flex items-center gap-2 text-[10px] font-mono font-black uppercase tracking-widest border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-primary px-3 py-1.5 transition-colors"
+        >
+          <span className="material-symbols-outlined text-sm">download</span>
+          Backup DB
+        </button>
       </header>
 
       {/* Main */}

@@ -22,9 +22,8 @@ export default function UnifiedAuth() {
         error?: string
       }>('/auth/google', { credential })
 
-      if (res.data.token && res.data.user) {
+      if (res.data.user) {
         // Log user in successfully and redirect to dashboard
-        localStorage.setItem('cd_token', res.data.token)
         localStorage.setItem('cd_user', JSON.stringify(res.data.user))
         window.location.href = res.data.user.role === 'admin' ? '/admin' : '/dashboard'
       }
