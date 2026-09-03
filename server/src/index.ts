@@ -20,7 +20,7 @@ import adminRouter from './routes/admin'
 import announcementsRouter from './routes/announcements'
 import userRouter from './routes/user'
 import statsRouter from './routes/stats'
-import { db, users } from './db'
+import { db, users, pingDb } from './db'
 import { eq, isNotNull, sql } from 'drizzle-orm'
 
 const app = express()
@@ -42,8 +42,32 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cookieParser())
 
-// Health check
-app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
+// Anti-Suspension & Health Check Endpoint
+const handleHealthCheck = async (req: express.Request, res: express.Response) => {
+  const checkDb = req.query.db === 'true' || req.query.deep === 'true'
+  let dbStatus = 'untested'
+
+  if (checkDb) {
+    const isDbAlive = await pingDb()
+    dbStatus = isDbAlive ? 'connected' : 'degraded'
+  }
+
+  const memoryUsage = process.memoryUsage()
+  res.json({
+    status: dbStatus === 'degraded' ? 'degraded' : 'ok',
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    db: dbStatus,
+    memory: {
+      rssMb: Math.round(memoryUsage.rss / 1024 / 1024),
+      heapTotalMb: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+      heapUsedMb: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+    },
+  })
+}
+
+app.get('/health', handleHealthCheck)
+app.get('/api/health', handleHealthCheck)
 
 // Routes
 app.use('/api/auth', authRouter)
@@ -61,6 +85,15 @@ app.use('/api/stats', statsRouter)
 
 // 404 fallback
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
+
+// Global Error Handling Middleware to prevent server crashes
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Server Error:', err)
+  res.status(500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+  })
+})
 
 const fetchLeetCodeStats = async (username: string) => {
   const query = `
@@ -126,39 +159,81 @@ const refreshLeetCodeProfiles = async () => {
 }
 
 app.listen(PORT, async () => {
-  // Auto-migration for production DB stability
+  // Fast Batched Auto-migration for production DB stability (1 roundtrip instead of 18)
   try {
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "semester" text;`)
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_token" text;`)
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_token_expiry" timestamp;`)
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "leetcode_rating" integer DEFAULT 0;`)
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "leetcode_solved" integer DEFAULT 0;`)
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "leetcode_url" text;`)
-    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "github_url" text;`)
-    await db.execute(sql`ALTER TABLE "team_members" ADD COLUMN IF NOT EXISTS "instagram_url" text;`)
-    await db.execute(sql`ALTER TABLE "team_members" ADD COLUMN IF NOT EXISTS "linkedin_url" text;`)
-    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "external_url" text;`)
-    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "platform" text;`)
-    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;`)
-    await db.execute(sql`ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;`)
-    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "external_url" text;`)
-    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;`)
-    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;`)
-    await db.execute(sql`ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "participants" integer DEFAULT 0;`)
-    await db.execute(sql`ALTER TABLE "gallery" ADD COLUMN IF NOT EXISTS "drive_url" text;`)
-    console.log("✓ Database auto-migration complete")
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "semester" text;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_token" text;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_token_expiry" timestamp;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "leetcode_rating" integer DEFAULT 0;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "leetcode_solved" integer DEFAULT 0;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "leetcode_url" text;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "github_url" text;
+        ALTER TABLE "team_members" ADD COLUMN IF NOT EXISTS "instagram_url" text;
+        ALTER TABLE "team_members" ADD COLUMN IF NOT EXISTS "linkedin_url" text;
+        ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "external_url" text;
+        ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "platform" text;
+        ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;
+        ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;
+        ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "external_url" text;
+        ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "ends_at" timestamp;
+        ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;
+        ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "participants" integer DEFAULT 0;
+        ALTER TABLE "gallery" ADD COLUMN IF NOT EXISTS "drive_url" text;
+      END $$;
+    `)
+    console.log("✓ Database auto-migration complete (batched)")
   } catch (err) {
     console.error("Auto-migration skipped or failed:", err)
   }
 
   console.log(`\n🚀  Code Dynamos API running on http://localhost:${PORT}`)
-  console.log(`   Health: http://localhost:${PORT}/health`)
+  console.log(`   Health: http://localhost:${PORT}/api/health`)
   console.log(`   Auth:   POST /api/auth/login | POST /api/auth/signup`)
   console.log(`   Admin:  GET  /api/admin/stats  (requires admin token)\n`)
 
-  // Refresh LeetCode profiles on startup and every 48 hours
-  refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
+  // 1. Keep-alive database connection ping (every 4 minutes)
+  // Keeps Neon DB compute warm and prevents serverless sleep mode
+  setInterval(async () => {
+    const ok = await pingDb()
+    if (!ok) {
+      console.warn('⚠️ DB ping failed - retrying connection...')
+    }
+  }, 1000 * 60 * 4)
+
+  // 2. Anti-Suspension Server Self-Pinger (every 10 minutes)
+  // Keeps Render Web Service alive by generating inbound HTTP traffic
+  const targetUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || `http://127.0.0.1:${PORT}`
+  setInterval(async () => {
+    try {
+      const pingEndpoint = `${targetUrl.replace(/\/$/, '')}/api/health`
+      const res = await fetch(pingEndpoint)
+      if (res.ok) {
+        console.log(`[KeepAlive] Server self-ping successful: ${pingEndpoint}`)
+      }
+    } catch (err) {
+      console.warn('[KeepAlive] Server self-ping warning:', err instanceof Error ? err.message : err)
+    }
+  }, 1000 * 60 * 10)
+
+  // Refresh LeetCode profiles on startup after a 10s delay (prevents boot blocking)
+  setTimeout(() => {
+    refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
+  }, 10000)
+
   setInterval(() => {
     refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
   }, 1000 * 60 * 60 * 48)
 })
+
+// Uncaught exception and rejection handlers to prevent process crash
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Promise Rejection at:', promise, 'reason:', reason)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception caught:', err)
+})
+
