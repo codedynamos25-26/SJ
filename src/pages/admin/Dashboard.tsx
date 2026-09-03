@@ -35,6 +35,83 @@ const toLineList = (value: unknown): string[] => {
   return []
 }
 
+/**
+ * Fast Client-Side Image Compressor & Converter
+ * Resizes and compresses user-uploaded images to lightweight WebP/JPEG format
+ * (Shrinks 10MB camera files to ~100KB-150KB before uploading to server/DB).
+ */
+const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (file.size <= 150 * 1024) {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = (err) => reject(err)
+      reader.readAsDataURL(file)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        let width = img.width
+        let height = img.height
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width)
+            width = maxWidth
+          } else {
+            width = Math.round((width * maxHeight) / height)
+            height = maxHeight
+          }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(event.target?.result as string)
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+
+        const compressed = canvas.toDataURL('image/webp', quality)
+        if (compressed && compressed.length > 50 && compressed.startsWith('data:image/webp')) {
+          resolve(compressed)
+        } else {
+          resolve(canvas.toDataURL('image/jpeg', quality))
+        }
+      }
+      img.onerror = () => resolve(event.target?.result as string)
+      img.src = event.target?.result as string
+    }
+    reader.onerror = (err) => reject(err)
+    reader.readAsDataURL(file)
+  })
+}
+
+/**
+ * Auto-converts Google Drive file/view links to direct high-speed CDN image URLs.
+ */
+const formatDriveImageUrl = (url: string): string => {
+  if (!url) return ''
+  let formatted = url.trim()
+  if (formatted.includes('drive.google.com/file/d/')) {
+    const id = formatted.split('/d/')[1]?.split('/')[0]?.split('?')[0]
+    if (id) return `https://lh3.googleusercontent.com/d/${id}`
+  } else if (formatted.includes('drive.google.com/open?id=')) {
+    const id = formatted.split('id=')[1]?.split('&')[0]
+    if (id) return `https://lh3.googleusercontent.com/d/${id}`
+  } else if (formatted.includes('drive.google.com/uc?id=')) {
+    const id = formatted.split('id=')[1]?.split('&')[0]
+    if (id) return `https://lh3.googleusercontent.com/d/${id}`
+  }
+  return formatted
+}
+
 const toScheduleList = (value: unknown): (string | { time: string; activity: string })[] => {
   if (Array.isArray(value)) {
     return value.map((entry) => {
@@ -812,28 +889,34 @@ const AdminDashboard = () => {
                       <div className="space-y-2">
                         <input
                           type="text"
-                          placeholder="Paste URL..."
+                          placeholder="Paste image or Google Drive URL..."
                           value={(eventModal.data[field] as string) ?? ''}
-                          onChange={(e) => setEventModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                          onChange={(e) => {
+                            const val = formatDriveImageUrl(e.target.value)
+                            setEventModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
+                          }}
                           className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                         />
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setEventModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
-                              reader.readAsDataURL(file);
+                              try {
+                                const compressed = await compressImage(file)
+                                setEventModal(s => ({ ...s, data: { ...s.data, [field]: compressed } }))
+                              } catch (err) {
+                                console.error('Image compression error:', err)
+                              }
                             }
                           }}
-                          className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                          className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all cursor-pointer"
                         />
                         {eventModal.data.image && (
                           <div className="mt-2 flex items-center gap-3">
                             <img src={eventModal.data.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-primary/40" />
-                            <span className="text-[10px] font-mono text-primary">Image ready</span>
+                            <span className="text-[10px] font-mono text-primary">Image ready (Compressed)</span>
                           </div>
                         )}
                       </div>
@@ -983,28 +1066,34 @@ const AdminDashboard = () => {
                       <div className="space-y-2">
                         <input
                           type="text"
-                          placeholder="Paste URL..."
+                          placeholder="Paste image or Google Drive URL..."
                           value={(challengeModal.data[field] as string) ?? ''}
-                          onChange={(e) => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                          onChange={(e) => {
+                            const val = formatDriveImageUrl(e.target.value)
+                            setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
+                          }}
                           className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                         />
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
-                              reader.readAsDataURL(file);
+                              try {
+                                const compressed = await compressImage(file)
+                                setChallengeModal(s => ({ ...s, data: { ...s.data, [field]: compressed } }))
+                              } catch (err) {
+                                console.error('Image compression error:', err)
+                              }
                             }
                           }}
-                          className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                          className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all cursor-pointer"
                         />
                         {challengeModal.data.image && (
                           <div className="mt-2 flex items-center gap-3">
                             <img src={challengeModal.data.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-primary/40" />
-                            <span className="text-[10px] font-mono text-primary">Image ready</span>
+                            <span className="text-[10px] font-mono text-primary">Image ready (Compressed)</span>
                           </div>
                         )}
                       </div>
@@ -1111,14 +1200,10 @@ const AdminDashboard = () => {
                 <div className="space-y-2">
                   <input
                     type="text"
-                    placeholder="Paste image URL..."
+                    placeholder="Paste image or Google Drive URL..."
                     value={(photoModal.data.img as string) ?? ''}
                     onChange={(e) => {
-                      let val = e.target.value
-                      if (val.includes('drive.google.com/file/d/')) {
-                        const id = val.split('/d/')[1]?.split('/')[0]
-                        if (id) val = `https://lh3.googleusercontent.com/d/${id}`
-                      }
+                      const val = formatDriveImageUrl(e.target.value)
                       setPhotoModal(s => ({ ...s, data: { ...s.data, img: val } }))
                     }}
                     className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
@@ -1126,15 +1211,18 @@ const AdminDashboard = () => {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0]
                       if (file) {
-                        const reader = new FileReader()
-                        reader.onloadend = () => setPhotoModal(s => ({ ...s, data: { ...s.data, img: reader.result as string } }))
-                        reader.readAsDataURL(file)
+                        try {
+                          const compressed = await compressImage(file)
+                          setPhotoModal(s => ({ ...s, data: { ...s.data, img: compressed } }))
+                        } catch (err) {
+                          console.error('Image compression error:', err)
+                        }
                       }
                     }}
-                    className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                    className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all cursor-pointer"
                   />
                   {photoModal.data.img && <img src={photoModal.data.img as string} alt="Preview" className="w-full h-32 object-cover border border-outline-variant/20" />}
                 </div>
@@ -1216,23 +1304,29 @@ const AdminDashboard = () => {
                     <div className="space-y-2">
                       <input
                         type="text"
-                        placeholder="Paste URL..."
+                        placeholder="Paste image or Google Drive URL..."
                         value={(projectModal.data[field] as string) ?? ''}
-                        onChange={(e) => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: e.target.value } }))}
+                        onChange={(e) => {
+                          const val = formatDriveImageUrl(e.target.value)
+                          setProjectModal(s => ({ ...s, data: { ...s.data, [field]: val } }))
+                        }}
                         className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                       />
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setProjectModal(s => ({ ...s, data: { ...s.data, [field]: reader.result as string } }));
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressImage(file)
+                              setProjectModal(s => ({ ...s, data: { ...s.data, [field]: compressed } }))
+                            } catch (err) {
+                              console.error('Image compression error:', err)
+                            }
                           }
                         }}
-                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                        className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all cursor-pointer"
                       />
                     </div>
                   ) : (
@@ -1322,28 +1416,34 @@ const AdminDashboard = () => {
                 <div className="space-y-2">
                   <input
                     type="text"
-                    placeholder="Paste image URL..."
+                    placeholder="Paste image or Google Drive URL..."
                     value={teamModal.data.image ?? ''}
-                    onChange={(e) => setTeamModal(s => ({ ...s, data: { ...s.data, image: e.target.value } }))}
+                    onChange={(e) => {
+                      const val = formatDriveImageUrl(e.target.value)
+                      setTeamModal(s => ({ ...s, data: { ...s.data, image: val } }))
+                    }}
                     className="w-full bg-surface-container border border-outline-variant/30 focus:border-primary rounded-sm p-3 text-sm text-on-surface font-body focus:outline-none"
                   />
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0]
                       if (file) {
-                        const reader = new FileReader()
-                        reader.onloadend = () => setTeamModal(s => ({ ...s, data: { ...s.data, image: reader.result as string } }))
-                        reader.readAsDataURL(file)
+                        try {
+                          const compressed = await compressImage(file)
+                          setTeamModal(s => ({ ...s, data: { ...s.data, image: compressed } }))
+                        } catch (err) {
+                          console.error('Image compression error:', err)
+                        }
                       }
                     }}
-                    className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all"
+                    className="w-full text-xs text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-[10px] file:font-mono file:font-black file:uppercase file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all cursor-pointer"
                   />
                   {teamModal.data.image && (
                     <div className="mt-2 flex items-center gap-3">
                       <img src={teamModal.data.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-primary/40" />
-                      <span className="text-[10px] font-mono text-primary">Photo ready</span>
+                      <span className="text-[10px] font-mono text-primary">Photo ready (Compressed)</span>
                     </div>
                   )}
                 </div>
