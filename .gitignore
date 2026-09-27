@@ -21,3 +21,8 @@ server/.env
 .idea/
 .claude
 
+# Backups (Private Database Snapshots)
+server/backups/
+backups/
+*.backup.json
+
