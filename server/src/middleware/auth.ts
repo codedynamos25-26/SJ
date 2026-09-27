@@ -2,10 +2,18 @@ import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import type { JwtPayload } from '../types'
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'dev_secret_change_in_production'
+const getJwtSecret = (): string => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🚨 CRITICAL SECURITY WARNING: JWT_SECRET environment variable is not defined!')
+  }
+  return 'dev_secret_change_in_production_codedynamos_secure_key_2026'
+}
+
+const JWT_SECRET = getJwtSecret()
 
 export const signToken = (payload: Omit<JwtPayload, 'iat' | 'exp'>) =>
-  jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' })
+  jwt.sign(payload, JWT_SECRET, { expiresIn: '24h', algorithm: 'HS256' })
 
 export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   let token = req.cookies?.token
@@ -18,7 +26,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     return
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload
     req.user = decoded
     next()
   } catch {

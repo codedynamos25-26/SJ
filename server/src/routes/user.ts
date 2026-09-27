@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { authenticate } from '../middleware/auth'
+import { cacheGet, cacheSet, cacheDel } from '../lib/cache'
 
 const router = Router()
 router.use(authenticate)
@@ -33,6 +34,15 @@ router.post('/leetcode', async (req, res): Promise<void> => {
     return
   }
 
+  // Check 1-hour cache first
+  const cacheKey = `leetcode:${parsed.toLowerCase()}`
+  const cached = await cacheGet<any>(cacheKey)
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT')
+    res.json(cached)
+    return
+  }
+
   const query = `
     query userPublicProfile($username: String!) {
       matchedUser(username: $username) {
@@ -52,61 +62,73 @@ router.post('/leetcode', async (req, res): Promise<void> => {
     }
   `
 
-  const response = await fetch('https://leetcode.com/graphql/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'User-Agent': 'CodeDynamosBot/1.0',
-      'Referer': 'https://leetcode.com/',
-    },
-    body: JSON.stringify({ query, variables: { username: parsed } }),
-  })
+  try {
+    const response = await fetch('https://leetcode.com/graphql/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'CodeDynamosBot/1.0',
+        'Referer': 'https://leetcode.com/',
+      },
+      body: JSON.stringify({ query, variables: { username: parsed } }),
+      signal: AbortSignal.timeout(7000),
+    })
 
-  if (!response.ok) {
-    res.status(502).json({ error: 'Failed to reach LeetCode service' })
-    return
-  }
-
-  const payload = await response.json() as {
-    data?: {
-      matchedUser?: {
-        username: string
-        profile?: { ranking?: number }
-        submitStatsGlobal?: {
-          acSubmissionNum?: Array<{ difficulty: string; count: number }>
-        }
-      }
-      userContestRanking?: { rating?: number }
+    if (!response.ok) {
+      res.status(502).json({ error: 'Failed to reach LeetCode service' })
+      return
     }
-    errors?: Array<{ message?: string }>
+
+    const payload = await response.json() as {
+      data?: {
+        matchedUser?: {
+          username: string
+          profile?: { ranking?: number }
+          submitStatsGlobal?: {
+            acSubmissionNum?: Array<{ difficulty: string; count: number }>
+          }
+        }
+        userContestRanking?: { rating?: number }
+      }
+      errors?: Array<{ message?: string }>
+    }
+
+    const userData = payload.data?.matchedUser
+    if (!userData) {
+      res.status(404).json({ error: payload.errors?.[0]?.message ?? 'LeetCode profile not found' })
+      return
+    }
+
+    const stats = userData.submitStatsGlobal?.acSubmissionNum ?? []
+    const getCount = (difficulty: string) => stats.find((s) => s.difficulty === difficulty)?.count ?? 0
+
+    const totalSolved = getCount('All')
+    const easyCount = getCount('Easy')
+    const mediumCount = getCount('Medium')
+    const hardCount = getCount('Hard')
+    const ranking = userData.profile?.ranking ?? 0
+    const contestRating = payload.data?.userContestRanking?.rating ?? 0
+
+    const result = {
+      username: userData.username,
+      totalSolved,
+      easyCount,
+      mediumCount,
+      hardCount,
+      ranking,
+      contestRating,
+    }
+
+    // Cache for 1 hour
+    await cacheSet(cacheKey, result, 3600)
+
+    res.setHeader('X-Cache', 'MISS')
+    res.json(result)
+  } catch (fetchErr: any) {
+    console.error('LeetCode fetch error:', fetchErr)
+    res.status(504).json({ error: 'LeetCode verification timed out. Please try again.' })
   }
-
-  const userData = payload.data?.matchedUser
-  if (!userData) {
-    res.status(404).json({ error: payload.errors?.[0]?.message ?? 'LeetCode profile not found' })
-    return
-  }
-
-  const stats = userData.submitStatsGlobal?.acSubmissionNum ?? []
-  const getCount = (difficulty: string) => stats.find((s) => s.difficulty === difficulty)?.count ?? 0
-
-  const totalSolved = getCount('All')
-  const easyCount = getCount('Easy')
-  const mediumCount = getCount('Medium')
-  const hardCount = getCount('Hard')
-  const ranking = userData.profile?.ranking ?? 0
-  const contestRating = payload.data?.userContestRanking?.rating ?? 0
-
-  res.json({
-    username: userData.username,
-    totalSolved,
-    easyCount,
-    mediumCount,
-    hardCount,
-    ranking,
-    contestRating,
-  })
 })
 router.put('/profile', async (req, res): Promise<void> => {
   const { githubUrl, leetcodeProfile, leetcodeSolved, leetcodeRating, year, semester, track, usn, name, department } = req.body as {
@@ -146,6 +168,9 @@ router.put('/profile', async (req, res): Promise<void> => {
       res.status(404).json({ error: 'User not found' })
       return
     }
+
+    // Invalidate leaderboard cache so next fetch gets updated stats immediately
+    await cacheDel('leaderboard:all')
 
     const lSolved = updated.leetcodeSolved ?? 0
     const lRating = updated.leetcodeRating ?? 0

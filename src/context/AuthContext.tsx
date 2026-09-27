@@ -37,8 +37,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   })
   const [isLoading, setIsLoading] = useState(false)
 
-  // Fetch the user on mount using the httpOnly cookie
+  // Fetch the user on mount if a session token or user is present
   useEffect(() => {
+    const storedToken = localStorage.getItem('cd_token')
+    const storedUser = localStorage.getItem('cd_user')
+
+    // If there is no token or saved user, skip /auth/me to avoid unnecessary 401 console errors
+    if (!storedToken && !storedUser) {
+      return
+    }
+
     api.get<AuthUser>('/auth/me')
       .then((res) => {
         setUser(res.data)
@@ -48,6 +56,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (err.response?.status === 401) {
           setUser(null)
           localStorage.removeItem('cd_user')
+          localStorage.removeItem('cd_token')
         }
       })
   }, [])
@@ -72,7 +81,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true)
     try {
-      const res = await api.post<{ user: AuthUser }>('/auth/login', { email, password })
+      const res = await api.post<{ user: AuthUser; token?: string }>('/auth/login', { email, password })
+      if (res.data.token) {
+        localStorage.setItem('cd_token', res.data.token)
+      }
       localStorage.setItem('cd_user', JSON.stringify(res.data.user))
       setUser(res.data.user)
       return res.data.user
@@ -84,7 +96,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signup = useCallback(async (data: { email: string; name: string; password: string; track: string; semester?: string; usn?: string; department?: string; year?: string }) => {
     setIsLoading(true)
     try {
-      const res = await api.post<{ user: AuthUser }>('/auth/signup', data)
+      const res = await api.post<{ user: AuthUser; token?: string }>('/auth/signup', data)
+      if (res.data.token) {
+        localStorage.setItem('cd_token', res.data.token)
+      }
       localStorage.setItem('cd_user', JSON.stringify(res.data.user))
       setUser(res.data.user)
       return res.data.user
@@ -100,6 +115,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // ignore
     } finally {
       localStorage.removeItem('cd_user')
+      localStorage.removeItem('cd_token')
       setUser(null)
       window.location.href = '/login'
     }

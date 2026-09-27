@@ -16,6 +16,15 @@ export const api = axios.create({
   withCredentials: true,
 })
 
+// Automatically attach Bearer token from localStorage for seamless cross-domain auth
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('cd_token')
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 // On 401, clear stored credentials and redirect to login
 // BUT skip this for auth endpoints themselves (login/signup/me) so their
 // error messages can reach the component catch blocks without a hard redirect loop
@@ -27,6 +36,7 @@ api.interceptors.response.use(
     
     if (err.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('cd_user')
+      localStorage.removeItem('cd_token')
       if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
         window.location.href = '/login'
       }

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { eq, and, sql } from 'drizzle-orm'
 import { db, challenges, userActiveChallenges, users } from '../db'
 import { authenticate, optionalAuth } from '../middleware/auth'
+import { cacheDel } from '../lib/cache'
 
 const router = Router()
 
@@ -176,52 +177,66 @@ router.get('/:id', optionalAuth, async (req, res): Promise<void> => {
 
 // POST /api/challenges/:id/enroll
 router.post('/:id/enroll', authenticate, async (req, res): Promise<void> => {
-  const [row] = await db.select({
-    id: challenges.id,
-    status: challenges.status,
-    endsAt: challenges.endsAt,
-    enrollmentXp: challenges.enrollmentXp,
-  }).from(challenges).where(eq(challenges.id, req.params.id))
-  if (!row) { res.status(404).json({ error: 'Challenge not found' }); return }
+  try {
+    const [row] = await db.select({
+      id: challenges.id,
+      status: challenges.status,
+      endsAt: challenges.endsAt,
+      enrollmentXp: challenges.enrollmentXp,
+    }).from(challenges).where(eq(challenges.id, req.params.id))
+    if (!row) { res.status(404).json({ error: 'Challenge not found' }); return }
 
-  const challenge = checkExpiration(row)
-  if (challenge.status !== 'Open') { res.status(409).json({ error: 'This challenge is no longer accepting participants' }); return }
+    const challenge = checkExpiration(row)
+    if (challenge.status !== 'Open') { res.status(409).json({ error: 'This challenge is no longer accepting participants' }); return }
 
-  const [already] = await db.select().from(userActiveChallenges)
-    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, challenge.id)))
-  if (already) { res.status(409).json({ error: 'Already enrolled' }); return }
+    const [already] = await db.select().from(userActiveChallenges)
+      .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, challenge.id)))
+    if (already) { res.status(409).json({ error: 'Already enrolled' }); return }
 
-  await db.insert(userActiveChallenges).values({ userId: req.user!.userId, challengeId: challenge.id })
-  await db.update(challenges).set({ participants: sql`${challenges.participants} + 1` }).where(eq(challenges.id, challenge.id))
+    await db.insert(userActiveChallenges).values({ userId: req.user!.userId, challengeId: challenge.id })
+    await db.update(challenges).set({ participants: sql`${challenges.participants} + 1` }).where(eq(challenges.id, challenge.id))
 
-  if (challenge.enrollmentXp > 0) {
-    await db.update(users).set({ xp: sql`${users.xp} + ${challenge.enrollmentXp}` }).where(eq(users.id, req.user!.userId))
+    if (challenge.enrollmentXp > 0) {
+      await db.update(users).set({ xp: sql`${users.xp} + ${challenge.enrollmentXp}` }).where(eq(users.id, req.user!.userId))
+      await cacheDel('leaderboard:all')
+    }
+    await cacheDel('stats:home')
+
+    res.json({ message: 'Enrolled', challengeId: challenge.id, xpAwarded: challenge.enrollmentXp })
+  } catch (err) {
+    console.error('Challenge enrollment error:', err)
+    res.status(500).json({ error: 'Failed to enroll in challenge' })
   }
-
-  res.json({ message: 'Enrolled', challengeId: challenge.id, xpAwarded: challenge.enrollmentXp })
 })
 
 // DELETE /api/challenges/:id/enroll — withdraw
 router.delete('/:id/enroll', authenticate, async (req, res): Promise<void> => {
-  const [row] = await db.select({
-    id: challenges.id,
-    enrollmentXp: challenges.enrollmentXp
-  }).from(challenges).where(eq(challenges.id, req.params.id))
-  if (!row) { res.status(404).json({ error: 'Challenge not found' }); return }
+  try {
+    const [row] = await db.select({
+      id: challenges.id,
+      enrollmentXp: challenges.enrollmentXp
+    }).from(challenges).where(eq(challenges.id, req.params.id))
+    if (!row) { res.status(404).json({ error: 'Challenge not found' }); return }
 
-  const [enrolled] = await db.select().from(userActiveChallenges)
-    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, row.id)))
-  if (!enrolled) { res.status(409).json({ error: 'Not enrolled' }); return }
+    const [enrolled] = await db.select().from(userActiveChallenges)
+      .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, row.id)))
+    if (!enrolled) { res.status(409).json({ error: 'Not enrolled' }); return }
 
-  await db.delete(userActiveChallenges)
-    .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, row.id)))
-  await db.update(challenges).set({ participants: sql`GREATEST(${challenges.participants} - 1, 0)` }).where(eq(challenges.id, row.id))
+    await db.delete(userActiveChallenges)
+      .where(and(eq(userActiveChallenges.userId, req.user!.userId), eq(userActiveChallenges.challengeId, row.id)))
+    await db.update(challenges).set({ participants: sql`GREATEST(${challenges.participants} - 1, 0)` }).where(eq(challenges.id, row.id))
 
-  if (row.enrollmentXp > 0) {
-    await db.update(users).set({ xp: sql`GREATEST(${users.xp} - ${row.enrollmentXp}, 0)` }).where(eq(users.id, req.user!.userId))
+    if (row.enrollmentXp > 0) {
+      await db.update(users).set({ xp: sql`GREATEST(${users.xp} - ${row.enrollmentXp}, 0)` }).where(eq(users.id, req.user!.userId))
+      await cacheDel('leaderboard:all')
+    }
+    await cacheDel('stats:home')
+
+    res.json({ message: 'Withdrawn', challengeId: row.id, xpDeducted: row.enrollmentXp })
+  } catch (err) {
+    console.error('Challenge withdrawal error:', err)
+    res.status(500).json({ error: 'Failed to withdraw from challenge' })
   }
-
-  res.json({ message: 'Withdrawn', challengeId: row.id, xpDeducted: row.enrollmentXp })
 })
 
 export default router

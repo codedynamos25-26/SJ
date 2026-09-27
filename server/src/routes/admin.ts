@@ -2,7 +2,19 @@ import { Router } from 'express'
 import { eq, sql, and } from 'drizzle-orm'
 import { db, users, events, challenges, projects, gallery, announcements, teamMembers, userActiveChallenges, userEnrolledEvents } from '../db'
 import { authenticate, adminOnly } from '../middleware/auth'
+import { cacheDel } from '../lib/cache'
 import type { Event, Challenge, Project, GalleryPhoto } from '../types'
+
+const invalidateAppCaches = async () => {
+  try {
+    await Promise.all([
+      cacheDel('leaderboard:all'),
+      cacheDel('stats:home')
+    ])
+  } catch (err) {
+    console.warn('[Cache] Invalidation error:', err)
+  }
+}
 
 interface Announcement { id: string; text: string; active: boolean }
 
@@ -84,15 +96,19 @@ const inferPlatformFromUrl = (url: string | null | undefined): string | null => 
   return 'External Platform'
 }
 
+const isValidDriveId = (id: string): boolean => /^[a-zA-Z0-9_-]{10,100}$/.test(id)
+
 const extractDriveFolderId = (value: string): string | null => {
   const trimmed = value.trim()
   if (!trimmed) return null
 
   const directMatch = trimmed.match(/drive\.google\.com\/(?:drive\/u\/\d+\/)?folders\/([a-zA-Z0-9_-]+)/)
-  if (directMatch?.[1]) return directMatch[1]
+  if (directMatch?.[1] && isValidDriveId(directMatch[1])) return directMatch[1]
 
   const queryMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/)
-  if (queryMatch?.[1]) return queryMatch[1]
+  if (queryMatch?.[1] && isValidDriveId(queryMatch[1])) return queryMatch[1]
+
+  if (isValidDriveId(trimmed)) return trimmed
 
   return null
 }
@@ -102,18 +118,19 @@ const extractDriveFileIdsFromHtml = (html: string): string[] => {
 
   const filePathMatches = html.matchAll(/\/file\/d\/([a-zA-Z0-9_-]{10,})/g)
   for (const match of filePathMatches) {
-    if (match[1]) ids.add(match[1])
+    if (match[1] && isValidDriveId(match[1])) ids.add(match[1])
   }
 
   const queryIdMatches = html.matchAll(/(?:[?&]|\\u003d)id(?:=|\\u003d)([a-zA-Z0-9_-]{10,})/g)
   for (const match of queryIdMatches) {
-    if (match[1]) ids.add(match[1])
+    if (match[1] && isValidDriveId(match[1])) ids.add(match[1])
   }
 
   return Array.from(ids)
 }
 
 const getDriveApiImages = async (folderId: string, apiKey: string): Promise<DriveFolderImage[]> => {
+  if (!isValidDriveId(folderId)) return []
   const images: DriveFolderImage[] = []
   let nextPageToken: string | undefined
 
@@ -127,7 +144,9 @@ const getDriveApiImages = async (folderId: string, apiKey: string): Promise<Driv
 
     if (nextPageToken) params.set('pageToken', nextPageToken)
 
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`)
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+      signal: AbortSignal.timeout(6000),
+    })
     if (!response.ok) {
       throw new Error(`Drive API error: ${response.status}`)
     }
@@ -153,20 +172,23 @@ const getDriveApiImages = async (folderId: string, apiKey: string): Promise<Driv
 }
 
 const getDriveScrapedImages = async (folderId: string): Promise<DriveFolderImage[]> => {
+  if (!isValidDriveId(folderId)) return []
   const sources = [
-    `https://drive.google.com/embeddedfolderview?id=${folderId}#grid`,
-    `https://drive.google.com/drive/folders/${folderId}`,
+    `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(folderId)}#grid`,
+    `https://drive.google.com/drive/folders/${encodeURIComponent(folderId)}`,
   ]
 
   const ids = new Set<string>()
 
   for (const source of sources) {
     try {
-      const response = await fetch(source)
+      const response = await fetch(source, {
+        signal: AbortSignal.timeout(6000),
+      })
       if (!response.ok) continue
       const html = await response.text()
       for (const id of extractDriveFileIdsFromHtml(html)) {
-        if (id !== folderId) ids.add(id)
+        if (id !== folderId && isValidDriveId(id)) ids.add(id)
       }
     } catch {
       // Continue trying other source pages.

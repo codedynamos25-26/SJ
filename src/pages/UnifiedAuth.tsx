@@ -23,13 +23,16 @@ export default function UnifiedAuth() {
       }>('/auth/google', { credential })
 
       if (res.data.user) {
+        if (res.data.token) {
+          localStorage.setItem('cd_token', res.data.token)
+        }
         // Log user in successfully and redirect to dashboard
         localStorage.setItem('cd_user', JSON.stringify(res.data.user))
         window.location.href = res.data.user.role === 'admin' ? '/admin' : '/dashboard'
       }
     } catch (err: any) {
       console.error(err)
-      const msg = err.response?.data?.error || 'Authentication failed. Please verify your student email.'
+      const msg = err.response?.data?.error || 'Authentication failed. Please verify your student email (@cmr.edu.in).'
       setError(msg)
     } finally {
       setLoading(false)

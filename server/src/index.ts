@@ -1,6 +1,7 @@
 import express from 'express' // v2
 import cors from 'cors'
 import helmet from 'helmet'
+import compression from 'compression'
 import dns from 'dns'
 import cookieParser from 'cookie-parser'
 
@@ -20,15 +21,20 @@ import adminRouter from './routes/admin'
 import announcementsRouter from './routes/announcements'
 import userRouter from './routes/user'
 import statsRouter from './routes/stats'
+import { generalApiLimiter } from './middleware/rateLimiter'
 import { db, users, pingDb } from './db'
 import { eq, isNotNull, sql } from 'drizzle-orm'
 
 const app = express()
 const PORT = process.env.PORT ?? 4000
 
+// HTTP Compression (Gzip / Brotli) for 70-80% payload size reduction
+app.use(compression())
+
 // Security + parsing
 app.use(helmet({
   crossOriginResourcePolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }))
 
 // In dev, allow all origins. In production, restrict to the Vercel frontend URL.
@@ -38,8 +44,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(express.json({ limit: '5mb' }))
+app.use(express.urlencoded({ extended: true, limit: '5mb' }))
 app.use(cookieParser())
 
 // Anti-Suspension & Health Check Endpoint
@@ -69,6 +75,9 @@ const handleHealthCheck = async (req: express.Request, res: express.Response) =>
 app.get('/health', handleHealthCheck)
 app.get('/api/health', handleHealthCheck)
 
+// Rate limiting on API routes
+app.use('/api', generalApiLimiter)
+
 // Routes
 app.use('/api/auth', authRouter)
 app.use('/api/events', eventsRouter)
@@ -84,7 +93,7 @@ app.use('/api/user', userRouter)
 app.use('/api/stats', statsRouter)
 
 // 404 fallback
-app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
+app.use((_req, res) => res.status(404).json({ error: 'Endpoint not found' }))
 
 // Global Error Handling Middleware to prevent server crashes
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -117,6 +126,7 @@ const fetchLeetCodeStats = async (username: string) => {
       'Referer': 'https://leetcode.com/',
     },
     body: JSON.stringify({ query, variables: { username } }),
+    signal: AbortSignal.timeout(7000),
   })
 
   if (!response.ok) throw new Error(`LeetCode fetch failed: ${response.status}`)
@@ -158,8 +168,8 @@ const refreshLeetCodeProfiles = async () => {
   }
 }
 
-app.listen(PORT, async () => {
-  // Fast Batched Auto-migration for production DB stability (1 roundtrip instead of 18)
+const server = app.listen(PORT, async () => {
+  // Fast Batched Auto-migration & Database Indexing for production DB stability
   try {
     await db.execute(sql`
       DO $$ 
@@ -182,9 +192,16 @@ app.listen(PORT, async () => {
         ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "enrollment_xp" integer DEFAULT 0;
         ALTER TABLE "challenges" ADD COLUMN IF NOT EXISTS "participants" integer DEFAULT 0;
         ALTER TABLE "gallery" ADD COLUMN IF NOT EXISTS "drive_url" text;
+
+        -- High Performance B-Tree Indexes for Instant Lookups
+        CREATE INDEX IF NOT EXISTS "idx_users_xp" ON "users" ("xp" DESC);
+        CREATE INDEX IF NOT EXISTS "idx_events_status" ON "events" ("status");
+        CREATE INDEX IF NOT EXISTS "idx_challenges_status" ON "challenges" ("status");
+        CREATE INDEX IF NOT EXISTS "idx_user_enrolled_events" ON "user_enrolled_events" ("user_id", "event_id");
+        CREATE INDEX IF NOT EXISTS "idx_user_active_challenges" ON "user_active_challenges" ("user_id", "challenge_id");
       END $$;
     `)
-    console.log("✓ Database auto-migration complete (batched)")
+    console.log("✓ Database auto-migration & indexing complete (batched)")
   } catch (err) {
     console.error("Auto-migration skipped or failed:", err)
   }
@@ -227,6 +244,24 @@ app.listen(PORT, async () => {
     refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
   }, 1000 * 60 * 60 * 48)
 })
+
+// Graceful Process Lifecycle & Shutdown
+const gracefulShutdown = (signal: string) => {
+  console.log(`\n[Server] ${signal} signal received: closing HTTP server safely...`)
+  server.close(() => {
+    console.log('[Server] HTTP server closed gracefully. Exiting process.')
+    process.exit(0)
+  })
+
+  // Force shutdown after 10 seconds if lingering connections exist
+  setTimeout(() => {
+    console.error('[Server] Could not close connections in time, forcefully shutting down.')
+    process.exit(1)
+  }, 10000).unref()
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 // Uncaught exception and rejection handlers to prevent process crash
 process.on('unhandledRejection', (reason, promise) => {

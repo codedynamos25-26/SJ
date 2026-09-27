@@ -6,8 +6,10 @@ import { Resend } from 'resend'
 import { eq } from 'drizzle-orm'
 import { db, users } from '../db'
 import { signToken, authenticate } from '../middleware/auth'
+import { authRateLimiter } from '../middleware/rateLimiter'
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '212640393402-ud3mar6rlp3rrjg1n8cgvepshpfb7jsn.apps.googleusercontent.com'
+const RAW_GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '212640393402-ud3mar6rlp3rrjg1n8cgvepshpfb7jsn.apps.googleusercontent.com'
+const GOOGLE_CLIENT_ID = RAW_GOOGLE_CLIENT_ID.trim().replace(/^["']|["']$/g, '')
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID)
 
 // Lazy-initialize Resend so the server doesn't crash if the key is missing at startup
@@ -34,7 +36,7 @@ router.post('/logout', (_req, res) => {
 })
 
 // POST /api/auth/login
-router.post('/login', async (req, res): Promise<void> => {
+router.post('/login', authRateLimiter, async (req, res): Promise<void> => {
   const { email, password } = req.body as { email?: string; password?: string }
 
   if (!email || !password) {
@@ -64,12 +66,13 @@ router.post('/login', async (req, res): Promise<void> => {
   const leetcodeScore = Math.floor((user.leetcodeSolved ?? 0) * 0.4 + (user.leetcodeRating ?? 0) * 0.6)
 
   res.cookie('token', token, cookieOptions).json({
+    token,
     user: { id: user.id, email: user.email, name: user.name, role: user.role, xp: user.xp + leetcodeScore, rank: user.rank, usn: user.usn, department: user.department, year: user.year, semester: user.semester, githubUrl: user.githubUrl, leetcodeProfile: user.leetcodeProfile, leetcodeSolved: user.leetcodeSolved, track: user.track },
   })
 })
 
 // POST /api/auth/signup
-router.post('/signup', async (req, res): Promise<void> => {
+router.post('/signup', authRateLimiter, async (req, res): Promise<void> => {
   const { email, name, password, track, usn, department, year, semester } = req.body as {
     email?: string
     name?: string
@@ -90,33 +93,33 @@ router.post('/signup', async (req, res): Promise<void> => {
     return
   }
 
-  const [existing] = await db.select().from(users).where(eq(users.email, email.toLowerCase()))
+  const [existing] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()))
   if (existing) {
     res.status(409).json({ error: 'An account with this email already exists' })
     return
   }
 
-  const [allUsers] = await db.select({ count: users.id }).from(users)
   const id = `u${Date.now()}`
 
   const [newUser] = await db.insert(users).values({
     id,
-    email: email.toLowerCase(),
-    name,
+    email: email.toLowerCase().trim(),
+    name: name.trim(),
     role: 'member',
     passwordHash: bcrypt.hashSync(password, 10),
-    usn: usn ?? null,
-    department: department ?? null,
-    year: year ?? null,
-    semester: semester ?? null,
+    usn: usn ? usn.trim() : null,
+    department: department ? department.trim() : null,
+    year: year ? year.trim() : null,
+    semester: semester ? semester.trim() : null,
     xp: 0,
     rank: 0,
-    track,
+    track: track.trim(),
   }).returning()
 
   const token = signToken({ userId: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role as 'member' | 'admin' })
 
   res.status(201).cookie('token', token, cookieOptions).json({
+    token,
     user: { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, xp: newUser.xp, rank: newUser.rank, usn: newUser.usn, department: newUser.department, year: newUser.year, semester: newUser.semester, githubUrl: newUser.githubUrl, leetcodeProfile: newUser.leetcodeProfile, leetcodeSolved: newUser.leetcodeSolved, track: newUser.track },
   })
 })
@@ -136,7 +139,7 @@ router.get('/me', authenticate, async (req, res): Promise<void> => {
 
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', async (req, res): Promise<void> => {
+router.post('/forgot-password', authRateLimiter, async (req, res): Promise<void> => {
   try {
     const { email } = req.body
     if (!email) {
@@ -144,7 +147,7 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
       return
     }
 
-    const emailStr = String(email).toLowerCase()
+    const emailStr = String(email).toLowerCase().trim()
     const [user] = await db.select().from(users).where(eq(users.email, emailStr))
     if (!user) {
       res.json({ message: 'If an account exists, a reset link was sent.' })
@@ -196,7 +199,7 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
 })
 
 // POST /api/auth/reset-password
-router.post('/reset-password', async (req, res): Promise<void> => {
+router.post('/reset-password', authRateLimiter, async (req, res): Promise<void> => {
   const { token, newPassword } = req.body
   if (!token || !newPassword) {
     res.status(400).json({ error: 'Token and new password are required' })
@@ -221,7 +224,7 @@ router.post('/reset-password', async (req, res): Promise<void> => {
 })
 
 // POST /api/auth/google — Verify Google ID token and login/signup (validates @cmr.edu.in)
-router.post('/google', async (req, res): Promise<void> => {
+router.post('/google', authRateLimiter, async (req, res): Promise<void> => {
   const { credential, usn, department, year, semester, track } = req.body as {
     credential?: string
     usn?: string
@@ -237,9 +240,14 @@ router.post('/google', async (req, res): Promise<void> => {
   }
 
   try {
+    const validAudiences = Array.from(new Set([
+      GOOGLE_CLIENT_ID,
+      '212640393402-ud3mar6rlp3rrjg1n8cgvepshpfb7jsn.apps.googleusercontent.com'
+    ])).filter(Boolean)
+
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
-      audience: GOOGLE_CLIENT_ID,
+      audience: validAudiences,
     })
     const payload = ticket.getPayload()
     if (!payload) {
@@ -253,9 +261,9 @@ router.post('/google', async (req, res): Promise<void> => {
       return
     }
 
-    const emailLower = email.toLowerCase()
+    const emailLower = email.toLowerCase().trim()
     if (!emailLower.endsWith('@cmr.edu.in')) {
-      res.status(400).json({ error: 'Only student accounts ending with @cmr.edu.in are allowed to login or sign up.' })
+      res.status(403).json({ error: 'Only student accounts ending with @cmr.edu.in are allowed to login or sign up.' })
       return
     }
 
@@ -273,6 +281,7 @@ router.post('/google', async (req, res): Promise<void> => {
       const leetcodeScore = Math.floor((user.leetcodeSolved ?? 0) * 0.4 + (user.leetcodeRating ?? 0) * 0.6)
       
       res.cookie('token', token, cookieOptions).json({
+        token,
         user: { 
           id: user.id, 
           email: user.email, 
@@ -301,18 +310,19 @@ router.post('/google', async (req, res): Promise<void> => {
       name: name || 'Google User',
       role: 'member',
       googleId,
-      usn: '',
-      department: 'N/A',
-      year: 'N/A',
-      semester: 'N/A',
+      usn: usn ?? '',
+      department: department ?? 'N/A',
+      year: year ?? 'N/A',
+      semester: semester ?? 'N/A',
       xp: 0,
       rank: 0,
-      track: 'Fullstack',
+      track: track ?? 'Fullstack',
     }).returning()
 
     const token = signToken({ userId: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role as 'member' | 'admin' })
 
     res.status(201).cookie('token', token, cookieOptions).json({
+      token,
       user: { 
         id: newUser.id, 
         email: newUser.email, 
@@ -333,7 +343,7 @@ router.post('/google', async (req, res): Promise<void> => {
 
   } catch (error: any) {
     console.error('Google Auth Error:', error)
-    res.status(401).json({ error: 'Failed to verify Google token securely. Please try again.' })
+    res.status(401).json({ error: error?.message || 'Failed to verify Google token securely. Please try again.' })
   }
 })
 
