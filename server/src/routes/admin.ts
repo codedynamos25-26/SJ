@@ -230,7 +230,7 @@ const applyExpirationStatus = <T extends { endsAt?: Date | string | null; status
 const router = Router()
 router.use(authenticate, adminOnly)
 
-// ── Database Backup ────────────────────────────────────────────────────────
+// ── Database Backup & Restore ─────────────────────────────────────────────
 router.get('/backup', async (_req, res) => {
   try {
     const allUsers = await db.select().from(users)
@@ -240,9 +240,24 @@ router.get('/backup', async (_req, res) => {
     const allGallery = await db.select().from(gallery)
     const allProjects = await db.select().from(projects)
     const allAnnouncements = await db.select().from(announcements)
+    const allEnrolledEvents = await db.select().from(userEnrolledEvents)
+    const allActiveChallenges = await db.select().from(userActiveChallenges)
 
+    const dateStr = new Date().toISOString().replace(/:/g, '-').slice(0, 19)
     const backup = {
+      version: '2.0',
       timestamp: new Date().toISOString(),
+      counts: {
+        users: allUsers.length,
+        events: allEvents.length,
+        challenges: allChallenges.length,
+        teamMembers: allTeam.length,
+        gallery: allGallery.length,
+        projects: allProjects.length,
+        announcements: allAnnouncements.length,
+        userEnrolledEvents: allEnrolledEvents.length,
+        userActiveChallenges: allActiveChallenges.length,
+      },
       data: {
         users: allUsers,
         events: allEvents,
@@ -250,16 +265,244 @@ router.get('/backup', async (_req, res) => {
         teamMembers: allTeam,
         gallery: allGallery,
         projects: allProjects,
-        announcements: allAnnouncements
+        announcements: allAnnouncements,
+        userEnrolledEvents: allEnrolledEvents,
+        userActiveChallenges: allActiveChallenges,
       }
     }
 
-    res.setHeader('Content-Disposition', 'attachment; filename="code-dynamos-db-backup.json"')
+    res.setHeader('Content-Disposition', `attachment; filename="code-dynamos-backup-${dateStr}.json"`)
     res.setHeader('Content-Type', 'application/json')
     res.send(JSON.stringify(backup, null, 2))
   } catch (error) {
     console.error('Backup failed:', error)
     res.status(500).json({ error: 'Failed to generate backup' })
+  }
+})
+
+router.post('/restore', async (req, res) => {
+  try {
+    const backupPayload = req.body
+    const data = backupPayload?.data || backupPayload
+
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ error: 'Invalid backup format' })
+    }
+
+    let restoredCount = 0
+
+    // 1. Restore Users
+    if (Array.isArray(data.users) && data.users.length > 0) {
+      for (const u of data.users) {
+        if (!u.id || !u.email) continue
+        await db.insert(users).values({
+          ...u,
+          resetTokenExpiry: u.resetTokenExpiry ? new Date(u.resetTokenExpiry) : null,
+          createdAt: u.createdAt ? new Date(u.createdAt) : new Date(),
+        }).onConflictDoUpdate({
+          target: users.id,
+          set: {
+            name: u.name,
+            email: u.email,
+            role: u.role ?? 'member',
+            xp: u.xp ?? 0,
+            rank: u.rank ?? 0,
+            usn: u.usn,
+            department: u.department,
+            year: u.year,
+            semester: u.semester,
+            githubUrl: u.githubUrl,
+            leetcodeProfile: u.leetcodeProfile,
+            leetcodeSolved: u.leetcodeSolved ?? 0,
+            leetcodeRating: u.leetcodeRating ?? 0,
+            track: u.track ?? 'Fullstack',
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 2. Restore Events
+    if (Array.isArray(data.events) && data.events.length > 0) {
+      for (const e of data.events) {
+        if (!e.id || !e.title) continue
+        await db.insert(events).values({
+          ...e,
+          endsAt: e.endsAt ? new Date(e.endsAt) : null,
+        }).onConflictDoUpdate({
+          target: events.id,
+          set: {
+            title: e.title,
+            description: e.description,
+            type: e.type,
+            date: e.date,
+            slots: e.slots,
+            total: e.total,
+            status: e.status,
+            location: e.location,
+            accent: e.accent,
+            image: e.image,
+            platform: e.platform,
+            externalUrl: e.externalUrl,
+            benefits: e.benefits ?? [],
+            schedule: e.schedule ?? [],
+            requirements: e.requirements ?? [],
+            enrollmentXp: e.enrollmentXp ?? 0,
+            endsAt: e.endsAt ? new Date(e.endsAt) : null,
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 3. Restore Challenges
+    if (Array.isArray(data.challenges) && data.challenges.length > 0) {
+      for (const c of data.challenges) {
+        if (!c.id || !c.title) continue
+        await db.insert(challenges).values({
+          ...c,
+          endsAt: c.endsAt ? new Date(c.endsAt) : null,
+        }).onConflictDoUpdate({
+          target: challenges.id,
+          set: {
+            title: c.title,
+            difficulty: c.difficulty,
+            xp: c.xp,
+            pool: c.pool,
+            completions: c.completions ?? 0,
+            participants: c.participants ?? 0,
+            tags: c.tags ?? [],
+            description: c.description,
+            requirements: c.requirements ?? [],
+            timeline: c.timeline ?? [],
+            prizes: c.prizes ?? [],
+            status: c.status ?? 'Open',
+            image: c.image,
+            enrollmentXp: c.enrollmentXp ?? 0,
+            externalUrl: c.externalUrl,
+            endsAt: c.endsAt ? new Date(c.endsAt) : null,
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 4. Restore Team Members
+    if (Array.isArray(data.teamMembers) && data.teamMembers.length > 0) {
+      for (const t of data.teamMembers) {
+        if (!t.id || !t.name) continue
+        await db.insert(teamMembers).values(t).onConflictDoUpdate({
+          target: teamMembers.id,
+          set: {
+            name: t.name,
+            role: t.role,
+            dept: t.dept,
+            instagramUrl: t.instagramUrl,
+            linkedinUrl: t.linkedinUrl,
+            tier: t.tier ?? 'Core',
+            image: t.image,
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 5. Restore Gallery
+    if (Array.isArray(data.gallery) && data.gallery.length > 0) {
+      for (const g of data.gallery) {
+        if (!g.id || !g.img) continue
+        await db.insert(gallery).values(g).onConflictDoUpdate({
+          target: gallery.id,
+          set: {
+            tag: g.tag,
+            year: g.year,
+            label: g.label,
+            span: g.span,
+            img: g.img,
+            driveUrl: g.driveUrl,
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 6. Restore Projects
+    if (Array.isArray(data.projects) && data.projects.length > 0) {
+      for (const p of data.projects) {
+        if (!p.id || !p.title) continue
+        await db.insert(projects).values(p).onConflictDoUpdate({
+          target: projects.id,
+          set: {
+            title: p.title,
+            description: p.description,
+            status: p.status,
+            tech: p.tech ?? [],
+            stars: p.stars ?? 0,
+            forks: p.forks ?? 0,
+            img: p.img,
+            githubUrl: p.githubUrl,
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 7. Restore Announcements
+    if (Array.isArray(data.announcements) && data.announcements.length > 0) {
+      for (const a of data.announcements) {
+        if (!a.id || !a.text) continue
+        await db.insert(announcements).values({
+          ...a,
+          createdAt: a.createdAt ? new Date(a.createdAt) : new Date(),
+        }).onConflictDoUpdate({
+          target: announcements.id,
+          set: {
+            text: a.text,
+            active: a.active ?? true,
+          }
+        })
+        restoredCount++
+      }
+    }
+
+    // 8. Restore Enrollments
+    if (Array.isArray(data.userEnrolledEvents) && data.userEnrolledEvents.length > 0) {
+      for (const ue of data.userEnrolledEvents) {
+        if (!ue.userId || !ue.eventId) continue
+        try {
+          await db.insert(userEnrolledEvents).values({
+            ...ue,
+            enrolledAt: ue.enrolledAt ? new Date(ue.enrolledAt) : new Date(),
+          }).onConflictDoNothing()
+          restoredCount++
+        } catch {}
+      }
+    }
+
+    // 9. Restore Active Challenges
+    if (Array.isArray(data.userActiveChallenges) && data.userActiveChallenges.length > 0) {
+      for (const uc of data.userActiveChallenges) {
+        if (!uc.userId || !uc.challengeId) continue
+        try {
+          await db.insert(userActiveChallenges).values({
+            ...uc,
+            enrolledAt: uc.enrolledAt ? new Date(uc.enrolledAt) : new Date(),
+          }).onConflictDoNothing()
+          restoredCount++
+        } catch {}
+      }
+    }
+
+    await invalidateAppCaches()
+
+    res.json({
+      success: true,
+      message: `Database restored successfully. Restored/updated ${restoredCount} records.`,
+      restoredCount,
+    })
+  } catch (error) {
+    console.error('Restore failed:', error)
+    res.status(500).json({ error: 'Failed to restore database backup' })
   }
 })
 

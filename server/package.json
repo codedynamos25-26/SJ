@@ -9,6 +9,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "ts-node src/db/seed.ts",
+    "db:backup": "ts-node src/scripts/backup.ts",
+    "db:restore": "ts-node src/scripts/restore.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
@@ -198,13 +198,16 @@ const AdminDashboard = () => {
 
   const handleLogout = () => { logout(); navigate('/login') }
 
+  const [restoring, setRestoring] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const handleBackup = async () => {
     try {
       const res = await api.get('/admin/backup', { responseType: 'blob' })
       const url = window.URL.createObjectURL(new Blob([res.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', 'code-dynamos-db-backup.json')
+      link.setAttribute('download', `code-dynamos-backup-${new Date().toISOString().slice(0, 10)}.json`)
       document.body.appendChild(link)
       link.click()
       link.parentNode?.removeChild(link)
@@ -212,6 +215,34 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Backup download failed', error)
       alert('Failed to download database backup.')
+    }
+  }
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const confirmRestore = window.confirm(
+      `⚠️ Database Restore Confirmation:\n\nAre you sure you want to restore data from "${file.name}"?\nExisting records will be safely updated and missing records will be inserted.`
+    )
+    if (!confirmRestore) {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    try {
+      setRestoring(true)
+      const text = await file.text()
+      const json = JSON.parse(text)
+      const res = await api.post('/admin/restore', json)
+      alert(res.data.message || '✅ Database restored successfully!')
+      queryClient.invalidateQueries()
+    } catch (error: any) {
+      console.error('Restore failed', error)
+      alert(error.response?.data?.error || error.message || 'Failed to restore database backup.')
+    } finally {
+      setRestoring(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -402,13 +433,36 @@ const AdminDashboard = () => {
         <div className="flex-1 text-xs font-mono uppercase tracking-widest text-on-surface-variant">
           Admin / <span className="text-white capitalize">{tab}</span>
         </div>
-        <button 
-          onClick={handleBackup} 
-          className="flex items-center gap-2 text-[10px] font-mono font-black uppercase tracking-widest border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-primary px-3 py-1.5 transition-colors"
-        >
-          <span className="material-symbols-outlined text-sm">download</span>
-          Backup DB
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleBackup} 
+            title="Download full JSON database snapshot"
+            className="flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-widest border border-outline-variant/30 text-on-surface-variant hover:text-white hover:border-primary px-3 py-1.5 transition-colors rounded-lg bg-surface-container/50 hover:bg-surface-container"
+          >
+            <span className="material-symbols-outlined text-sm">download</span>
+            Backup DB
+          </button>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleRestore}
+            accept=".json,application/json"
+            className="hidden"
+          />
+
+          <button 
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={restoring}
+            title="Restore database from a previous JSON backup file"
+            className="flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-widest border border-primary/40 text-primary hover:text-black hover:bg-primary px-3 py-1.5 transition-all rounded-lg disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-sm">
+              {restoring ? 'hourglass_top' : 'upload'}
+            </span>
+            {restoring ? 'Restoring...' : 'Restore DB'}
+          </button>
+        </div>
       </header>
 
       {/* Main */}
