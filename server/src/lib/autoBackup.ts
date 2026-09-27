@@ -4,6 +4,10 @@ import { db, users, events, challenges, projects, gallery, announcements, teamMe
 
 const BACKUP_DIR = path.resolve(__dirname, '../../backups')
 const MAX_BACKUPS = 10
+const COOLDOWN_MS = 15 * 60 * 1000 // 15 minutes throttle cooldown
+
+let lastBackupTimestamp = 0
+let isBackingUp = false
 
 export interface BackupPayload {
   version: string
@@ -14,8 +18,23 @@ export interface BackupPayload {
 
 /**
  * Creates an automated, non-blocking backup snapshot of all tables.
+ * Throttled to a maximum of once every 15 minutes to eliminate server/database overhead.
  */
-export const createAutoBackup = async (): Promise<BackupPayload | null> => {
+export const createAutoBackup = async (force = false): Promise<BackupPayload | null> => {
+  const nowMs = Date.now()
+
+  // If a backup was run recently and not forced, skip immediately (0 DB queries)
+  if (!force && nowMs - lastBackupTimestamp < COOLDOWN_MS) {
+    return getLatestSnapshot()
+  }
+
+  // Prevent multiple concurrent backup operations
+  if (isBackingUp) {
+    return getLatestSnapshot()
+  }
+
+  isBackingUp = true
+
   try {
     if (!fs.existsSync(BACKUP_DIR)) {
       fs.mkdirSync(BACKUP_DIR, { recursive: true })
@@ -84,6 +103,8 @@ export const createAutoBackup = async (): Promise<BackupPayload | null> => {
     // Prune older backup files to avoid disk usage accumulation
     cleanOldBackups()
 
+    lastBackupTimestamp = Date.now()
+
     console.log(`🛡️ [AutoBackup] Automated database snapshot created (${now.toLocaleTimeString()}) — Total records: ${
       Object.values(backupPayload.counts).reduce((a, b) => a + b, 0)
     }`)
@@ -92,6 +113,8 @@ export const createAutoBackup = async (): Promise<BackupPayload | null> => {
   } catch (error) {
     console.warn('⚠️ [AutoBackup] Automated database snapshot warning:', error instanceof Error ? error.message : error)
     return null
+  } finally {
+    isBackingUp = false
   }
 }
 
