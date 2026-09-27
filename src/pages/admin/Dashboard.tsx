@@ -246,6 +246,31 @@ const AdminDashboard = () => {
     }
   }
 
+  const handleAutoRestore = async () => {
+    try {
+      const infoRes = await api.get('/admin/backup/latest-info')
+      if (!infoRes.data.available) {
+        alert('No automated snapshot is stored on the server yet. One will be created automatically shortly.')
+        return
+      }
+      const dateFormatted = new Date(infoRes.data.timestamp).toLocaleString()
+      const confirmAuto = window.confirm(
+        `🛡️ Server Automated Snapshot Found:\n\n📅 Created: ${dateFormatted}\n📊 Total Records: ${infoRes.data.totalRecords}\n\nDo you want to restore the database from this server snapshot?`
+      )
+      if (!confirmAuto) return
+
+      setRestoring(true)
+      const res = await api.post('/admin/restore/auto')
+      alert(res.data.message || '✅ Restored from auto-snapshot!')
+      queryClient.invalidateQueries()
+    } catch (err: any) {
+      console.error('Auto-restore failed:', err)
+      alert(err.response?.data?.error || 'Failed to auto-restore snapshot.')
+    } finally {
+      setRestoring(false)
+    }
+  }
+
   // Queries
   const { data: members = [] } = useQuery<Member[]>({ queryKey: ['admin-members'], queryFn: () => api.get('/admin/members').then(r => r.data), enabled: tab === 'members' })
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ['admin-events'], queryFn: () => api.get('/admin/events').then(r => r.data), enabled: tab === 'events' })
@@ -454,13 +479,23 @@ const AdminDashboard = () => {
           <button 
             onClick={() => fileInputRef.current?.click()} 
             disabled={restoring}
-            title="Restore database from a previous JSON backup file"
-            className="flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-widest border border-primary/40 text-primary hover:text-black hover:bg-primary px-3 py-1.5 transition-all rounded-lg disabled:opacity-50"
+            title="Restore database from a downloaded JSON backup file"
+            className="flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-widest border border-outline-variant/40 text-on-surface-variant hover:text-white hover:border-outline px-3 py-1.5 transition-all rounded-lg disabled:opacity-50 bg-surface-container/30"
           >
             <span className="material-symbols-outlined text-sm">
               {restoring ? 'hourglass_top' : 'upload'}
             </span>
-            {restoring ? 'Restoring...' : 'Restore DB'}
+            {restoring ? 'Restoring...' : 'Restore File'}
+          </button>
+
+          <button 
+            onClick={handleAutoRestore} 
+            disabled={restoring}
+            title="Restore database from the latest automatic background snapshot stored on the server"
+            className="flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-widest border border-primary/40 text-primary hover:text-black hover:bg-primary px-3 py-1.5 transition-all rounded-lg disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-sm">settings_backup_restore</span>
+            Auto-Restore
           </button>
         </div>
       </header>

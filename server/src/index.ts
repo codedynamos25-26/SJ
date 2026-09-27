@@ -243,6 +243,26 @@ const server = app.listen(PORT, async () => {
   setInterval(() => {
     refreshLeetCodeProfiles().catch((err) => console.error('LeetCode refresh failed:', err))
   }, 1000 * 60 * 60 * 48)
+
+  // 3. Automated Database Periodic Snapshot Backup
+  // Runs 30 seconds after server startup, then recurring every 12 hours
+  setTimeout(async () => {
+    try {
+      const { createAutoBackup } = await import('./lib/autoBackup')
+      await createAutoBackup()
+    } catch (err) {
+      console.warn('[AutoBackup] Startup snapshot warning:', err)
+    }
+  }, 30000)
+
+  setInterval(async () => {
+    try {
+      const { createAutoBackup } = await import('./lib/autoBackup')
+      await createAutoBackup()
+    } catch (err) {
+      console.warn('[AutoBackup] Scheduled snapshot warning:', err)
+    }
+  }, 1000 * 60 * 60 * 12)
 })
 
 // Graceful Process Lifecycle & Shutdown
